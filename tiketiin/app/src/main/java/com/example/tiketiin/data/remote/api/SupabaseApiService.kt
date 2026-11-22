@@ -9,6 +9,9 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 import com.example.tiketiin.data.remote.dto.PriceHistoryDto
 import com.example.tiketiin.data.remote.dto.PriceHistoryRequest
+import retrofit2.http.Header
+import com.example.tiketiin.data.remote.dto.CreateListingRequest
+import com.example.tiketiin.data.remote.dto.ListingRowDto
 
 interface SupabaseApiService {
 
@@ -103,4 +106,9 @@ interface SupabaseApiService {
     suspend fun getPriceHistory(
         @Body body: PriceHistoryRequest
     ): List<PriceHistoryDto>
+    @POST("rest/v1/ticket_listings")
+    suspend fun createListing(
+        @Header("Prefer") prefer: String = "return=representation",
+        @Body body: CreateListingRequest
+    ): List<ListingRowDto>
 }
