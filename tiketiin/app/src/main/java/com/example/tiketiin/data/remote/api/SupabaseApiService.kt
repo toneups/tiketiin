@@ -5,6 +5,10 @@ import com.example.tiketiin.data.remote.dto.VenueDto
 import retrofit2.http.GET
 import retrofit2.http.Query
 import com.example.tiketiin.data.remote.dto.ProfileDto
+import retrofit2.http.Body
+import retrofit2.http.POST
+import com.example.tiketiin.data.remote.dto.PriceHistoryDto
+import com.example.tiketiin.data.remote.dto.PriceHistoryRequest
 
 interface SupabaseApiService {
 
@@ -94,4 +98,9 @@ interface SupabaseApiService {
         select: String = "*"
 
     ): List<ProfileDto>
+    // ===== Fair Price (Raisya) =====
+    @POST("rest/v1/rpc/get_price_history")
+    suspend fun getPriceHistory(
+        @Body body: PriceHistoryRequest
+    ): List<PriceHistoryDto>
 }
