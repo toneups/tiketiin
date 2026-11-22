@@ -14,6 +14,10 @@ import com.example.tiketiin.data.source.DummyDataSource
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import com.example.tiketiin.data.auth.AuthenticatedRequest
+import com.example.tiketiin.data.remote.RetrofitClient
+import com.example.tiketiin.data.remote.dto.PriceHistoryRequest
+import kotlinx.coroutines.CancellationException
 
 /**
  * Satu-satunya pintu data untuk semua ViewModel (pola sama dengan StudentRepository).
@@ -187,7 +191,17 @@ class DefaultTiketiinRepository(
     }
 
     override suspend fun getPriceHistory(eventId: Int, seatCategory: String): List<Long> {
-        return source.priceHistory[eventId] ?: emptyList()
+        return try {
+            AuthenticatedRequest.execute {
+                RetrofitClient.api.getPriceHistory(
+                    PriceHistoryRequest(eventId, seatCategory)
+                )
+            }.map { it.unitPrice }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
     override suspend fun getDemandStats(): List<EventDemandStats> {
