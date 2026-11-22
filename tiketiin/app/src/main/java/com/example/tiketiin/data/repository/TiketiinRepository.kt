@@ -45,7 +45,7 @@ interface TiketiinRepository {
     suspend fun addListing(listing: TicketListing): Int
     suspend fun updateListingPrice(listingId: Int, price: Long)
     suspend fun deleteListing(listingId: Int)
-    suspend fun getPriceHistory(eventId: Int): List<Long>
+    suspend fun getPriceHistory(eventId: Int, seatCategory: String): List<Long>
 
     // Hot Opportunity
     suspend fun getDemandStats(): List<EventDemandStats>
@@ -186,7 +186,7 @@ class DefaultTiketiinRepository(
         source.listings.removeAll { it.id == listingId }
     }
 
-    override suspend fun getPriceHistory(eventId: Int): List<Long> {
+    override suspend fun getPriceHistory(eventId: Int, seatCategory: String): List<Long> {
         return source.priceHistory[eventId] ?: emptyList()
     }
 

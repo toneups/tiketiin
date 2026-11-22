@@ -133,7 +133,7 @@ class SellViewModel(
             return
         }
         viewModelScope.launch {
-            val history = repository.getPriceHistory(event.id)
+            val history = repository.getPriceHistory(event.id, state.seatCategory)
             val result = FairPriceCalculator.check(faceValue, price, history)
             _uiState.update { it.copy(formError = null, priceResult = result) }
             onValid()

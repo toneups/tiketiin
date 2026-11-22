@@ -189,7 +189,7 @@ class MyListingsViewModel(
             val result = FairPriceCalculator.check(
                 listing.faceValue,
                 price,
-                repository.getPriceHistory(listing.eventId)
+                repository.getPriceHistory(listing.eventId, listing.seatCategory)
             )
             val error = when {
                 price < 10_000 -> "Harga belum benar."
