@@ -503,7 +503,7 @@ fun PriceCheckScreen(
                     label = if (result.usedHistory) "Histori tiket terjual" else "Rentang dari markup wajar",
                     value = "${formatRupiah(result.rangeMin)} - ${formatRupiah(result.rangeMax)}"
                 )
-                DetailRow(label = "Markup harga wajar", value = "10%-45%")
+                DetailRow(label = "Batas markup wajar", value = "maks. 22%")
                 DetailRow(label = "Markup harga jualmu", value = "%.1f%%".format(result.markupPercent))
                 DetailRow(label = "Kamu terima (harga rekomendasi)", value = formatRupiah(result.recommendedPrice), bold = true)
             }
