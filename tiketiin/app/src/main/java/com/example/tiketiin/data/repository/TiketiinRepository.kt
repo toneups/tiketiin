@@ -18,6 +18,8 @@ import com.example.tiketiin.data.auth.AuthenticatedRequest
 import com.example.tiketiin.data.remote.RetrofitClient
 import com.example.tiketiin.data.remote.dto.PriceHistoryRequest
 import kotlinx.coroutines.CancellationException
+import com.example.tiketiin.data.auth.SessionManager
+import com.example.tiketiin.data.remote.dto.CreateListingRequest
 
 /**
  * Satu-satunya pintu data untuk semua ViewModel (pola sama dengan StudentRepository).
@@ -173,10 +175,23 @@ class DefaultTiketiinRepository(
     }
 
     override suspend fun addListing(listing: TicketListing): Int {
-        fakeNetwork()
-        val id = source.nextListingId()
-        source.listings.add(listing.copy(id = id, sellerId = me))
-        return id
+        val sellerId = SessionManager.userId
+            ?: error("Silakan login dengan akun Supabase terlebih dahulu.")
+
+        val created = AuthenticatedRequest.execute {
+            RetrofitClient.api.createListing(
+                body = CreateListingRequest(
+                    eventId = listing.eventId,
+                    sellerId = sellerId,
+                    seatCategory = listing.seatCategory,
+                    seatRow = listing.row,
+                    faceValue = listing.faceValue,
+                    price = listing.price,
+                    quantity = listing.quantity
+                )
+            )
+        }
+        return created.first().id
     }
 
     override suspend fun updateListingPrice(listingId: Int, price: Long) {
