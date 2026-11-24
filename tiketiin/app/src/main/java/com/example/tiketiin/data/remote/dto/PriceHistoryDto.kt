@@ -42,3 +42,8 @@ data class ListingDto(
     @SerializedName("saves") val saves: Int = 0,
     @SerializedName("offers") val offers: Int = 0
 )
+// Body untuk mengubah sebagian kolom listing (PATCH)
+data class UpdateListingRequest(
+    @SerializedName("price") val price: Long? = null,
+    @SerializedName("status") val status: String? = null
+)

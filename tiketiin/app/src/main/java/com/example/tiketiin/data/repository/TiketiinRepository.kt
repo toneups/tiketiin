@@ -21,6 +21,7 @@ import kotlinx.coroutines.CancellationException
 import com.example.tiketiin.data.auth.SessionManager
 import com.example.tiketiin.data.remote.dto.CreateListingRequest
 import com.example.tiketiin.data.remote.dto.ListingDto
+import com.example.tiketiin.data.remote.dto.UpdateListingRequest
 
 /**
  * Satu-satunya pintu data untuk semua ViewModel (pola sama dengan StudentRepository).
@@ -198,8 +199,17 @@ class DefaultTiketiinRepository(
     )
 
     override suspend fun getMyListings(): List<TicketListing> {
-        fakeNetwork()
-        return source.listings.filter { it.sellerId == me }
+        val sellerId = SessionManager.userId
+            ?: return source.listings.filter { it.sellerId == me }
+        return try {
+            AuthenticatedRequest.execute {
+                RetrofitClient.api.getMyListings(sellerId = "eq.$sellerId")
+            }.map { it.toModel() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            source.listings.filter { it.sellerId == me }
+        }
     }
 
     override suspend fun addListing(listing: TicketListing): Int {
@@ -223,14 +233,21 @@ class DefaultTiketiinRepository(
     }
 
     override suspend fun updateListingPrice(listingId: Int, price: Long) {
-        val index = source.listings.indexOfFirst { it.id == listingId }
-        if (index >= 0) {
-            source.listings[index] = source.listings[index].copy(price = price)
+        AuthenticatedRequest.execute {
+            RetrofitClient.api.updateListing(
+                id = "eq.$listingId",
+                body = UpdateListingRequest(price = price)
+            )
         }
     }
 
     override suspend fun deleteListing(listingId: Int) {
-        source.listings.removeAll { it.id == listingId }
+        AuthenticatedRequest.execute {
+            RetrofitClient.api.updateListing(
+                id = "eq.$listingId",
+                body = UpdateListingRequest(status = "NONAKTIF")
+            )
+        }
     }
 
     override suspend fun getPriceHistory(eventId: Int, seatCategory: String): List<Long> {

@@ -13,6 +13,8 @@ import retrofit2.http.Header
 import com.example.tiketiin.data.remote.dto.CreateListingRequest
 import com.example.tiketiin.data.remote.dto.ListingRowDto
 import com.example.tiketiin.data.remote.dto.ListingDto
+import retrofit2.http.PATCH
+import com.example.tiketiin.data.remote.dto.UpdateListingRequest
 
 interface SupabaseApiService {
 
@@ -117,4 +119,19 @@ interface SupabaseApiService {
         @Query("id") id: String,
         @Query("select") select: String = "*"
     ): List<ListingDto>
+    // Listing milik seller yang sedang login (RLS "Read own listings")
+    @GET("rest/v1/ticket_listings")
+    suspend fun getMyListings(
+        @Query("seller_id") sellerId: String,
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "created_at.desc"
+    ): List<ListingDto>
+
+    // Ubah harga atau status satu listing
+    @PATCH("rest/v1/ticket_listings")
+    suspend fun updateListing(
+        @Query("id") id: String,
+        @Header("Prefer") prefer: String = "return=minimal",
+        @Body body: UpdateListingRequest
+    )
 }
