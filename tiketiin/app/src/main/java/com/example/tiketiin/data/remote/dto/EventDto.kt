@@ -46,6 +46,6 @@ data class EventDto(
     val venue: VenueDto?,
 
     @SerializedName("ticket_listings")
-    val ticketListings: List<ListingSummaryDto>? = null
+    val ticketListings: List<TicketListingDto>? = null
 
 )

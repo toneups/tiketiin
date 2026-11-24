@@ -16,6 +16,8 @@ data class DetailUiState(
     val errorMessage: String? = null,
     val summary: EventSummary? = null,
     val listing: TicketListing? = null,
+    val listings: List<TicketListing> = emptyList(),
+    val selectedListingId: Int? = null,
     val quantity: Int = 1,
     val selectedTab: Int = 0
 ) {
@@ -43,14 +45,20 @@ class DetailViewModel(
                 _uiState.update { it.copy(isLoading = false, errorMessage = "Event tidak ditemukan") }
                 return@launch
             }
-            val listing = repository.getCheapestListing(eventId)
+            val listings = repository.getListings(eventId)
+            val listing = listings.minByOrNull { it.price }
             _uiState.update {
                 it.copy(
                     isLoading = false,
                     errorMessage = null,
                     summary = summary,
                     listing = listing,
-                    quantity = it.quantity.coerceIn(1, (listing?.quantity ?: 1).coerceAtLeast(1))
+                    listings = listings,
+                    selectedListingId = listing?.id,
+                    quantity = it.quantity.coerceIn(
+                        1,
+                        (listing?.quantity ?: 1).coerceAtLeast(1)
+                    )
                 )
             }
         }
@@ -58,6 +66,23 @@ class DetailViewModel(
 
     fun selectTab(tab: Int) {
         _uiState.update { it.copy(selectedTab = tab) }
+    }
+
+    fun selectListing(listingId: Int) {
+        val selected = _uiState.value.listings
+            .find { it.id == listingId }
+            ?: return
+
+        _uiState.update {
+            it.copy(
+                listing = selected,
+                selectedListingId = selected.id,
+                quantity = it.quantity.coerceIn(
+                    1,
+                    selected.quantity.coerceAtLeast(1)
+                )
+            )
+        }
     }
 
     fun changeQuantity(delta: Int) {

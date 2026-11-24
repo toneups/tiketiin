@@ -68,6 +68,19 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import com.example.tiketiin.data.repository.RepositoryProvider
 import android.widget.Toast
+import com.example.tiketiin.ui.hotel.HotelManagementScreen
+import com.example.tiketiin.ui.hotel.HotelManagementViewModel
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Text
+import com.example.tiketiin.ui.scanner.TicketScannerScreen
+import com.example.tiketiin.ui.scanner.TicketScannerViewModel
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import com.example.tiketiin.data.local.DatabaseProvider
+import com.example.tiketiin.data.local.HotelLocalDataSource
+import com.example.tiketiin.data.local.OrderLocalDataSource
 
 /**
  * Akar aplikasi: NavHost + bottom navigation (perannya sama seperti NavigationLabApp
@@ -78,10 +91,30 @@ fun TiketiinApp() {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
 
-    // Sumber data sementara masih dummy. Nanti cukup ganti di baris ini.
-    val repository = remember { DefaultTiketiinRepository(DummyDataSource) }
-
     val context = LocalContext.current.applicationContext
+
+    val database = remember(context) {
+        DatabaseProvider.getDatabase(context)
+    }
+
+    val hotelLocalDataSource = remember(database) {
+        HotelLocalDataSource(database.hotelDao())
+    }
+
+    val orderLocalDataSource = remember(database) {
+        OrderLocalDataSource(database.orderDao())
+    }
+
+    val repository = remember(
+        hotelLocalDataSource,
+        orderLocalDataSource
+    ) {
+        DefaultTiketiinRepository(
+            source = DummyDataSource,
+            hotelLocalDataSource = hotelLocalDataSource,
+            orderLocalDataSource = orderLocalDataSource
+        )
+    }
 
     val eventRepository = remember(context) {
         RepositoryProvider.getEventRepository(context)
@@ -129,9 +162,33 @@ fun TiketiinApp() {
     }
 
     // Mulai checkout (dari Detail Event atau Event Tersimpan).
-    fun startCheckout(eventId: Int, quantity: Int) {
-        checkoutViewModel.start(eventId, quantity)
+    fun startCheckout(
+        eventId: Int,
+        listingId: Int,
+        quantity: Int
+    ) {
+        checkoutViewModel.start(eventId, listingId, quantity)
         navController.navigate(Routes.ORDER_FORM)
+    }
+
+    fun startCheckoutFromSaved(eventId: Int) {
+        scope.launch {
+            val listing = repository.getCheapestListing(eventId)
+
+            if (listing != null) {
+                startCheckout(
+                    eventId = eventId,
+                    listingId = listing.id,
+                    quantity = 1
+                )
+            } else {
+                Toast.makeText(
+                    context,
+                    "Tiket tidak tersedia",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
     }
 
     // Mulai alur jual: e-KYC dulu kalau akun belum terverifikasi.
@@ -147,6 +204,30 @@ fun TiketiinApp() {
         bottomBar = {
             if (currentRoute in Routes.TABS) {
                 BottomNavBar(currentRoute = currentRoute, onSelect = { openTab(it) })
+            }
+        },
+        floatingActionButton = {
+            if (currentRoute == Routes.PROFILE) {
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FloatingActionButton(
+                        onClick = {
+                            navController.navigate("ticket_scanner")
+                        }
+                    ) {
+                        Text("Scan")
+                    }
+
+                    FloatingActionButton(
+                        onClick = {
+                            navController.navigate("hotel_management")
+                        }
+                    ) {
+                        Text("Hotel")
+                    }
+                }
             }
         }
     ) { innerPadding ->
@@ -304,8 +385,10 @@ fun TiketiinApp() {
                     uiState = uiState,
                     onSelectTab = ordersViewModel::selectTab,
                     onSelectStatus = ordersViewModel::selectStatus,
-                    onMoveTo = ordersViewModel::moveTo,
                     onRate = ordersViewModel::rate,
+                    onConfirmTicket = { orderId ->
+                        ordersViewModel.confirmTicket(orderId)
+                    },
                     onOpenTicket = { navController.navigate(Routes.ticket(it)) }
                 )
             }
@@ -383,7 +466,9 @@ fun TiketiinApp() {
                     onToggleSelected = viewModel::toggleSelected,
                     onRemove = viewModel::remove,
                     onOpenEvent = { openEvent(it) },
-                    onCheckout = { eventId -> startCheckout(eventId, 1) }
+                    onCheckout = { eventId ->
+                        startCheckoutFromSaved(eventId)
+                    }
                 )
             }
 
@@ -405,7 +490,10 @@ fun TiketiinApp() {
                     onSelectTab = viewModel::selectTab,
                     onChangeQuantity = viewModel::changeQuantity,
                     onToggleSaved = viewModel::toggleSaved,
-                    onBuy = { id, quantity -> startCheckout(id, quantity) }
+                    onBuy = { id, listingId, quantity ->
+                        startCheckout(id, listingId, quantity)
+                    },
+                    onSelectListing = viewModel::selectListing
                 )
             }
 
@@ -452,7 +540,12 @@ fun TiketiinApp() {
             ) { entry ->
                 val orderId = entry.arguments?.getInt("orderId") ?: -1
                 val viewModel: PaymentSuccessViewModel = viewModel(
-                    factory = simpleFactory { PaymentSuccessViewModel(repository) }
+                    factory = simpleFactory {
+                        PaymentSuccessViewModel(
+                            repository = repository,
+                            eventCatalogRepository = eventRepository
+                        )
+                    }
                 )
                 val uiState by viewModel.uiState.collectAsStateWithLifecycle()
                 LaunchedEffect(orderId) { viewModel.load(orderId) }
@@ -583,6 +676,35 @@ fun TiketiinApp() {
                 LaunchedEffect(Unit) { viewModel.load() }
 
                 SalesReportScreen(uiState = uiState, onBack = { navController.popBackStack() })
+            }
+
+            // ------------------------- KELOLA HOTEL -------------------------
+            composable("hotel_management") {
+
+                val viewModel: HotelManagementViewModel = viewModel(
+                    factory = simpleFactory {
+                        HotelManagementViewModel(repository)
+                    }
+                )
+
+                HotelManagementScreen(
+                    viewModel = viewModel
+                )
+            }
+
+            composable("ticket_scanner") {
+                val viewModel: TicketScannerViewModel = viewModel(
+                    factory = simpleFactory {
+                        TicketScannerViewModel(repository)
+                    }
+                )
+
+                TicketScannerScreen(
+                    viewModel = viewModel,
+                    onBack = {
+                        navController.popBackStack()
+                    }
+                )
             }
         }
     }

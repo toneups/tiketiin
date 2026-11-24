@@ -14,6 +14,21 @@ import com.example.tiketiin.data.source.DummyDataSource
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import com.example.tiketiin.data.remote.HotelRemoteDataSource
+import com.example.tiketiin.data.mapper.toHotelModels
+import com.example.tiketiin.data.auth.AuthenticatedRequest
+import com.example.tiketiin.data.remote.EventRemoteDataSource
+import com.example.tiketiin.data.mapper.toModel
+import com.example.tiketiin.data.remote.OrderRemoteDataSource
+import com.example.tiketiin.data.local.HotelLocalDataSource
+import com.example.tiketiin.data.mapper.toEntity
+import com.example.tiketiin.data.mapper.toHotelModelsFromLocal
+import kotlinx.coroutines.CancellationException
+import com.example.tiketiin.data.local.OrderLocalDataSource
+import com.example.tiketiin.data.mapper.toOrderModelsFromLocal
+import com.example.tiketiin.data.mapper.toEntity
+import com.example.tiketiin.data.remote.dto.CreateHotelRequestDto
+import com.example.tiketiin.data.remote.dto.UpdateHotelRequestDto
 
 /**
  * Satu-satunya pintu data untuk semua ViewModel (pola sama dengan StudentRepository).
@@ -39,6 +54,7 @@ interface TiketiinRepository {
     suspend fun deleteEvent(eventId: Int)
 
     // Listing tiket
+    suspend fun getListings(eventId: Int): List<TicketListing>
     suspend fun getCheapestListing(eventId: Int): TicketListing?
     suspend fun getListing(listingId: Int): TicketListing?
     suspend fun getMyListings(): List<TicketListing>
@@ -51,7 +67,21 @@ interface TiketiinRepository {
     suspend fun getDemandStats(): List<EventDemandStats>
 
     // Pesanan
-    suspend fun createOrder(listingId: Int, quantity: Int, buyerName: String, paymentMethod: String): Order
+    suspend fun createOrder(
+        listingId: Int,
+        quantity: Int,
+        buyerName: String,
+        buyerEmail: String,
+        buyerPhone: String,
+        paymentMethod: String
+    ): Order
+
+    suspend fun payOrder(
+        orderId: Int,
+        paymentMethod: String
+    ): Order
+    suspend fun confirmTicket(orderId: Int): Order
+    suspend fun validateTicket(qrCode: String): String
     suspend fun getOrder(orderId: Int): Order?
     suspend fun getMyOrders(): List<Order>
     suspend fun getStoreOrders(): List<Order>
@@ -59,11 +89,31 @@ interface TiketiinRepository {
     suspend fun rateOrder(orderId: Int, rating: Int)
 
     // Hotel
-    suspend fun getHotels(): List<Hotel>
+    suspend fun getHotels(eventId: Int): List<Hotel>
+
+    // CRUD Hotel
+    suspend fun getAllHotels(): List<Hotel>
+
+    suspend fun createHotel(
+        request: CreateHotelRequestDto
+    ): Hotel
+
+    suspend fun updateHotel(
+        hotelId: Int,
+        request: UpdateHotelRequestDto
+    ): Hotel
+
+    suspend fun deleteHotel(hotelId: Int)
+
 }
 
 class DefaultTiketiinRepository(
-    private val source: DummyDataSource
+    private val source: DummyDataSource,
+    private val hotelRemoteDataSource: HotelRemoteDataSource = HotelRemoteDataSource(),
+    private val eventRemoteDataSource: EventRemoteDataSource = EventRemoteDataSource(),
+    private val orderRemoteDataSource: OrderRemoteDataSource = OrderRemoteDataSource(),
+    private val hotelLocalDataSource: HotelLocalDataSource? = null,
+    private val orderLocalDataSource: OrderLocalDataSource? = null
 ) : TiketiinRepository {
 
     // Meniru jeda jaringan supaya state loading terlihat saat demo.
@@ -155,8 +205,21 @@ class DefaultTiketiinRepository(
         source.listings.removeAll { it.eventId == eventId }
     }
 
+    override suspend fun getListings(eventId: Int): List<TicketListing> {
+        return AuthenticatedRequest.execute {
+            val event = eventRemoteDataSource.getEventWithListings(eventId)
+
+            event?.ticketListings
+                .orEmpty()
+                .filter {
+                    it.status == "AKTIF" && it.quantity > 0
+                }
+                .map { it.toModel() }
+        }
+    }
+
     override suspend fun getCheapestListing(eventId: Int): TicketListing? {
-        return source.activeListings(eventId).minByOrNull { it.price }
+        return getListings(eventId).minByOrNull { it.price }
     }
 
     override suspend fun getListing(listingId: Int): TicketListing? {
@@ -209,63 +272,166 @@ class DefaultTiketiinRepository(
         }
     }
 
+
     override suspend fun createOrder(
         listingId: Int,
         quantity: Int,
         buyerName: String,
+        buyerEmail: String,
+        buyerPhone: String,
         paymentMethod: String
     ): Order {
-        fakeNetwork()
-        val index = source.listings.indexOfFirst { it.id == listingId }
-        check(index >= 0) { "Tiket tidak ditemukan" }
-        val listing = source.listings[index]
-        check(listing.quantity >= quantity) { "Stok tiket tidak cukup" }
+        return AuthenticatedRequest.execute {
+            val orderId = orderRemoteDataSource.createOrder(
+                listingId = listingId,
+                quantity = quantity,
+                buyerName = buyerName,
+                buyerEmail = buyerEmail,
+                buyerPhone = buyerPhone,
+                paymentMethod = paymentMethod
+            )
 
-        // Kurangi stok; kalau habis listing otomatis berstatus Terjual.
-        val remaining = listing.quantity - quantity
-        source.listings[index] = listing.copy(
-            quantity = remaining,
-            status = if (remaining == 0) ListingStatus.TERJUAL else listing.status
-        )
+            val order = orderRemoteDataSource.getOrderById(orderId)
+                ?: error("Pesanan berhasil dibuat, tetapi detail pesanan gagal diambil.")
 
-        val ticketPrice = listing.price * quantity
-        val fee = ticketPrice * 5 / 100
-        val id = source.nextOrderId()
-        val now = LocalDateTime.now()
-        val order = Order(
-            id = id,
-            eventId = listing.eventId,
-            listingId = listing.id,
-            buyerId = me,
-            sellerId = listing.sellerId,
-            buyerName = buyerName,
-            quantity = quantity,
-            seatLabel = "${listing.seatCategory}, ${listing.row}",
-            ticketPrice = ticketPrice,
-            serviceFee = fee,
-            total = ticketPrice + fee,
-            paymentMethod = paymentMethod,
-            transactionNo = "%04d".format(id) + now.format(DateTimeFormatter.ofPattern("ddMMyyyy")),
-            createdAt = now.format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH.mm")),
-            status = OrderStatus.DIPROSES
-        )
-        source.orders.add(order)
-        return order
+            val model = order.toModel()
+
+            orderLocalDataSource?.saveOrder(model.toEntity())
+
+            model
+        }
+    }
+
+
+    override suspend fun payOrder(
+        orderId: Int,
+        paymentMethod: String
+    ): Order {
+        return AuthenticatedRequest.execute {
+            val result = orderRemoteDataSource.payOrder(
+                orderId = orderId,
+                paymentMethod = paymentMethod
+            )
+
+            check(result == "PAID") {
+                "Pembayaran gagal diproses."
+            }
+
+            val order = orderRemoteDataSource.getOrderById(orderId)
+                ?: error("Pembayaran berhasil, tetapi detail pesanan gagal diambil.")
+
+            val model = order.toModel()
+
+            orderLocalDataSource?.saveOrder(model.toEntity())
+
+            model
+        }
+    }
+
+    override suspend fun confirmTicket(orderId: Int): Order {
+        return AuthenticatedRequest.execute {
+            val result = orderRemoteDataSource.confirmTicket(orderId)
+
+            check(result == "COMPLETED") {
+                "Konfirmasi tiket gagal diproses."
+            }
+
+            val orderDto = orderRemoteDataSource.getOrderById(orderId)
+                ?: error("Konfirmasi berhasil, tetapi detail pesanan gagal diambil.")
+
+            val order = orderDto.toModel()
+
+            orderLocalDataSource?.saveOrder(order.toEntity())
+
+            order
+        }
+    }
+
+    override suspend fun validateTicket(qrCode: String): String {
+        return orderRemoteDataSource.validateTicket(qrCode)
     }
 
     override suspend fun getOrder(orderId: Int): Order? {
-        return source.orders.find { it.id == orderId }
+        return AuthenticatedRequest.execute {
+            orderRemoteDataSource
+                .getOrderById(orderId)
+                ?.toModel()
+        }
     }
+
 
     override suspend fun getMyOrders(): List<Order> {
-        fakeNetwork()
-        return source.orders.filter { it.buyerId == me }.sortedByDescending { it.id }
+        val local = orderLocalDataSource
+
+        return try {
+            val remoteOrders = AuthenticatedRequest.execute {
+                orderRemoteDataSource
+                    .getBuyerOrders(me)
+                    .map { it.toModel() }
+            }
+
+            if (local != null) {
+                local.replaceBuyerOrders(
+                    buyerId = me,
+                    orders = remoteOrders.map { it.toEntity() }
+                )
+            }
+
+            remoteOrders
+
+        } catch (error: CancellationException) {
+            throw error
+
+        } catch (remoteError: Exception) {
+            if (local == null) throw remoteError
+
+            val cachedOrders = local.getBuyerOrders(me)
+
+            if (cachedOrders.isEmpty()) {
+                throw remoteError
+            }
+
+            cachedOrders.toOrderModelsFromLocal()
+        }
     }
 
+
+
     override suspend fun getStoreOrders(): List<Order> {
-        fakeNetwork()
-        return source.orders.filter { it.sellerId == me }.sortedByDescending { it.id }
+        val local = orderLocalDataSource
+
+        return try {
+            val remoteOrders = AuthenticatedRequest.execute {
+                orderRemoteDataSource
+                    .getSellerOrders(me)
+                    .map { it.toModel() }
+            }
+
+            if (local != null) {
+                local.replaceSellerOrders(
+                    sellerId = me,
+                    orders = remoteOrders.map { it.toEntity() }
+                )
+            }
+
+            remoteOrders
+
+        } catch (error: CancellationException) {
+            throw error
+
+        } catch (remoteError: Exception) {
+            if (local == null) throw remoteError
+
+            val cachedOrders = local.getSellerOrders(me)
+
+            if (cachedOrders.isEmpty()) {
+                throw remoteError
+            }
+
+            cachedOrders.toOrderModelsFromLocal()
+        }
     }
+
 
     override suspend fun updateOrderStatus(orderId: Int, status: OrderStatus) {
         val index = source.orders.indexOfFirst { it.id == orderId }
@@ -281,8 +447,116 @@ class DefaultTiketiinRepository(
         }
     }
 
-    override suspend fun getHotels(): List<Hotel> {
-        fakeNetwork()
-        return source.hotels
+
+    override suspend fun getHotels(eventId: Int): List<Hotel> {
+        val localDataSource = hotelLocalDataSource
+
+        return try {
+            val remoteHotels = AuthenticatedRequest.execute {
+                hotelRemoteDataSource
+                    .getAvailableHotels(eventId)
+                    .toHotelModels()
+            }
+
+            // Simpan snapshot hotel berdasarkan event.
+            if (localDataSource != null) {
+                val entities = remoteHotels.map { hotel ->
+                    hotel.toEntity(eventId)
+                }
+
+                localDataSource.clearHotels(eventId)
+
+                if (entities.isNotEmpty()) {
+                    localDataSource.saveHotels(entities)
+                }
+            }
+
+            remoteHotels
+
+        } catch (error: CancellationException) {
+            throw error
+
+        } catch (remoteError: Exception) {
+
+            if (localDataSource == null) {
+                throw remoteError
+            }
+
+            val lastCachedAt =
+                localDataSource.getLastCachedAt(eventId)
+
+            val cacheAge =
+                lastCachedAt?.let { System.currentTimeMillis() - it }
+
+            // Cache hanya digunakan jika berumur maksimal 15 menit.
+            val isCacheFresh =
+                cacheAge != null &&
+                        cacheAge >= 0 &&
+                        cacheAge <= 15 * 60 * 1000L
+
+            if (!isCacheFresh) {
+                throw remoteError
+            }
+
+            val cachedHotels =
+                localDataSource.getHotels(eventId)
+                    .toHotelModelsFromLocal()
+
+            if (cachedHotels.isEmpty()) {
+                throw remoteError
+            }
+
+            cachedHotels
+        }
+    }
+
+
+    override suspend fun getAllHotels(): List<Hotel> {
+        return AuthenticatedRequest.execute {
+            hotelRemoteDataSource
+                .getAllHotels()
+                .toHotelModels()
+        }
+    }
+
+
+    override suspend fun createHotel(
+        request: CreateHotelRequestDto
+    ): Hotel {
+        return AuthenticatedRequest.execute {
+            val hotel = hotelRemoteDataSource
+                .createHotel(request)
+                .let { listOf(it).toHotelModels().first() }
+
+            // Bersihkan cache setelah hotel berhasil dibuat.
+            hotelLocalDataSource?.clearAllHotels()
+
+            hotel
+        }
+    }
+
+    override suspend fun updateHotel(
+        hotelId: Int,
+        request: UpdateHotelRequestDto
+    ): Hotel {
+        return AuthenticatedRequest.execute {
+            val hotel = hotelRemoteDataSource
+                .updateHotel(hotelId, request)
+                .let { listOf(it).toHotelModels().first() }
+
+            // Bersihkan cache setelah hotel berhasil diperbarui.
+            hotelLocalDataSource?.clearAllHotels()
+
+            hotel
+        }
+    }
+
+    override suspend fun deleteHotel(hotelId: Int) {
+        AuthenticatedRequest.execute {
+            hotelRemoteDataSource.deleteHotel(hotelId)
+
+            // Bersihkan cache setelah hotel berhasil dihapus.
+            hotelLocalDataSource?.clearAllHotels()
+        }
     }
 }

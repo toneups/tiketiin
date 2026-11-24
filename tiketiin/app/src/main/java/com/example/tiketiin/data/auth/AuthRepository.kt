@@ -118,4 +118,13 @@ class AuthRepository(
                 }
             }
         }
+
+    suspend fun getCurrentUserId(): String {
+        ensureValidSession()
+
+        return requireNotNull(SessionManager.userId) {
+            "ID pengguna tidak ditemukan."
+        }
+    }
+
 }

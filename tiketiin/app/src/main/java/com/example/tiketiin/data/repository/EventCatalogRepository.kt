@@ -7,6 +7,7 @@ import com.example.tiketiin.data.mapper.toSummary
 import com.example.tiketiin.data.model.EventSummary
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.firstOrNull
 
 class EventCatalogRepository(
     private val localDataSource: EventLocalDataSource,
@@ -70,6 +71,21 @@ class EventCatalogRepository(
         }
 
         localDataSource.saveEvents(entities)
+    }
+
+    // Mengambil satu event berdasarkan ID dari cache Room
+    suspend fun getEventSummary(eventId: Int): EventSummary? {
+        var cachedEvent = localDataSource.getEvents()
+            .firstOrNull { it.id == eventId }
+
+        if (cachedEvent == null) {
+            refreshEvents()
+
+            cachedEvent = localDataSource.getEvents()
+                .firstOrNull { it.id == eventId }
+        }
+
+        return cachedEvent?.toSummary()
     }
 
 }

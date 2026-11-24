@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.tiketiin.data.model.Event
 import com.example.tiketiin.data.model.Order
 import com.example.tiketiin.data.model.TicketListing
+import com.example.tiketiin.data.repository.EventCatalogRepository
 import com.example.tiketiin.data.repository.TiketiinRepository
 import com.example.tiketiin.domain.HotelFinder
 import com.example.tiketiin.domain.NearbyHotel
@@ -63,19 +64,35 @@ class CheckoutViewModel(
     private var timerJob: Job? = null
 
     // Dipanggil saat tombol "Beli Tiket" ditekan.
-    fun start(eventId: Int, quantity: Int) {
+    fun start(eventId: Int, listingId: Int, quantity: Int) {
         viewModelScope.launch {
             val user = repository.getUser()
             val summary = repository.getEventSummary(eventId)
-            val listing = repository.getCheapestListing(eventId)
+
+            // Ambil listing berdasarkan ID tiket yang dipilih pengguna.
+            val listing = repository.getListings(eventId)
+                .firstOrNull { it.id == listingId }
+
+            if (listing == null || listing.quantity <= 0) {
+                _uiState.value = CheckoutUiState(
+                    event = summary?.event,
+                    payError = "Tiket tidak tersedia atau stok sudah habis."
+                )
+                return@launch
+            }
+
             _uiState.value = CheckoutUiState(
                 event = summary?.event,
                 listing = listing,
-                quantity = quantity.coerceIn(1, (listing?.quantity ?: 1).coerceAtLeast(1)),
+                quantity = quantity.coerceIn(
+                    1,
+                    listing.quantity
+                ),
                 name = user.name,
                 email = user.email,
                 phone = user.phone
             )
+
             startTimer()
         }
     }
@@ -113,28 +130,57 @@ class CheckoutViewModel(
         return error == null
     }
 
+
     fun pay(onSuccess: (Int) -> Unit) {
         val state = _uiState.value
         val listing = state.listing ?: return
+
         if (state.isExpired || state.isPaying) return
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isPaying = true, payError = null) }
+            _uiState.update {
+                it.copy(
+                    isPaying = true,
+                    payError = null
+                )
+            }
+
             try {
+                // 1. Membuat pesanan terlebih dahulu
                 val order = repository.createOrder(
                     listingId = listing.id,
                     quantity = state.quantity,
                     buyerName = state.name,
+                    buyerEmail = state.email,
+                    buyerPhone = state.phone,
                     paymentMethod = state.paymentMethod
                 )
+
+                // 2. Memproses pembayaran melalui Supabase
+                val paidOrder = repository.payOrder(
+                    orderId = order.id,
+                    paymentMethod = state.paymentMethod
+                )
+
+                // 3. Menghentikan timer setelah pembayaran berhasil
                 timerJob?.cancel()
-                _uiState.update { it.copy(isPaying = false) }
-                onSuccess(order.id)
+
+                _uiState.update {
+                    it.copy(isPaying = false)
+                }
+
+                // 4. Membuka halaman pembayaran berhasil
+                onSuccess(paidOrder.id)
+
             } catch (e: CancellationException) {
                 throw e
+
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(isPaying = false, payError = e.message ?: "Pembayaran gagal")
+                    it.copy(
+                        isPaying = false,
+                        payError = e.message ?: "Pembayaran gagal"
+                    )
                 }
             }
         }
@@ -145,36 +191,95 @@ class CheckoutViewModel(
 // Layar Pembayaran Berhasil + Rekomendasi Hotel
 // ---------------------------------------------------------------------------
 
+
 data class PaymentSuccessUiState(
     val isLoading: Boolean = true,
     val order: Order? = null,
     val event: Event? = null,
-    val hotels: List<NearbyHotel> = emptyList()
+    val hotels: List<NearbyHotel> = emptyList(),
+    val hotelError: String? = null,
+    val error: String? = null
 )
 
 class PaymentSuccessViewModel(
-    private val repository: TiketiinRepository
+    private val repository: TiketiinRepository,
+    private val eventCatalogRepository: EventCatalogRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PaymentSuccessUiState())
-    val uiState: StateFlow<PaymentSuccessUiState> = _uiState.asStateFlow()
+    val uiState: StateFlow<PaymentSuccessUiState> =
+        _uiState.asStateFlow()
+
+    private var loadJob: Job? = null
 
     fun load(orderId: Int) {
-        viewModelScope.launch {
-            val order = repository.getOrder(orderId)
-            val event = order?.let { repository.getEventSummary(it.eventId)?.event }
-            // Fungsi 4: hotel terdekat dari venue event yang baru dibeli.
-            val hotels = if (event != null) {
-                HotelFinder.findNearby(event.latitude, event.longitude, repository.getHotels())
-            } else {
-                emptyList()
-            }
+        if (orderId <= 0) {
             _uiState.value = PaymentSuccessUiState(
                 isLoading = false,
-                order = order,
-                event = event,
-                hotels = hotels
+                error = "ID pesanan tidak valid."
             )
+            return
+        }
+
+        loadJob?.cancel()
+
+        loadJob = viewModelScope.launch {
+            _uiState.value = PaymentSuccessUiState(isLoading = true)
+
+            try {
+                val order = repository.getOrder(orderId)
+
+                if (order == null) {
+                    _uiState.value = PaymentSuccessUiState(
+                        isLoading = false,
+                        error = "Pesanan tidak ditemukan."
+                    )
+                    return@launch
+                }
+
+                val event = eventCatalogRepository
+                    .getEventSummary(order.eventId)?.event
+
+                if (event == null) {
+                    _uiState.value = PaymentSuccessUiState(
+                        isLoading = false,
+                        order = order,
+                        hotelError = "Informasi lokasi event tidak tersedia."
+                    )
+                    return@launch
+                }
+
+                var hotelError: String? = null
+
+                val hotels = try {
+                    HotelFinder.findNearby(
+                        event.latitude,
+                        event.longitude,
+                        repository.getHotels(order.eventId)
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    hotelError = "Gagal memuat rekomendasi hotel."
+                    emptyList()
+                }
+
+                _uiState.value = PaymentSuccessUiState(
+                    isLoading = false,
+                    order = order,
+                    event = event,
+                    hotels = hotels,
+                    hotelError = hotelError
+                )
+
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.value = PaymentSuccessUiState(
+                    isLoading = false,
+                    error = e.message ?: "Gagal memuat informasi pesanan."
+                )
+            }
         }
     }
 }

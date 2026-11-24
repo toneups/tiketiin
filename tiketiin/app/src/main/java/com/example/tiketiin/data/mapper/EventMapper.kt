@@ -1,10 +1,13 @@
 package com.example.tiketiin.data.mapper
 
+import com.example.tiketiin.data.remote.dto.TicketListingDto
 import com.example.tiketiin.data.local.entity.CachedEventEntity
 import com.example.tiketiin.data.remote.dto.EventDto
 import com.example.tiketiin.data.model.Event
 import com.example.tiketiin.data.model.EventCategory
 import com.example.tiketiin.data.model.EventSummary
+import com.example.tiketiin.data.model.ListingStatus
+import com.example.tiketiin.data.model.TicketListing
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.Duration
@@ -96,5 +99,22 @@ fun CachedEventEntity.toSummary(
         lowestPrice = requireNotNull(lowestPrice),
         ticketCount = requireNotNull(ticketCount),
         isSaved = isSaved
+    )
+}
+
+fun TicketListingDto.toModel(): TicketListing {
+    return TicketListing(
+        id = id,
+        eventId = eventId,
+        sellerId = sellerId,
+        seatCategory = seatCategory,
+        row = seatRow,
+        faceValue = faceValue,
+        price = price,
+        quantity = quantity,
+        status = ListingStatus.valueOf(status),
+        views = views,
+        saves = saves,
+        offers = offers
     )
 }

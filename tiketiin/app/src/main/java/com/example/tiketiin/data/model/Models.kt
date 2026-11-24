@@ -60,11 +60,13 @@ data class TicketListing(
     val offers: Int = 0
 )
 
+
 enum class OrderStatus(val label: String) {
     BELUM_BAYAR("Belum bayar"),
     DIPROSES("Diproses"),
-    DITERIMA("Pesanan diterima"),
-    SELESAI("Beri Penilaian")
+    SELESAI("Selesai"),
+    DIBATALKAN("Dibatalkan"),
+    KEDALUWARSA("Kedaluwarsa")
 }
 
 data class Order(
@@ -83,7 +85,11 @@ data class Order(
     val transactionNo: String,
     val createdAt: String,
     val status: OrderStatus,
-    val rating: Int = 0
+    val qrCode: String? = null,
+    val rating: Int = 0,
+    val buyerEmail: String = "",
+    val buyerPhone: String = "",
+    val ticketUsedAt: String? = null
 )
 
 data class Hotel(
@@ -96,7 +102,11 @@ data class Hotel(
     val rating: Double,
     val availableRooms: Int,
     val colorStart: Long,
-    val colorEnd: Long
+    val colorEnd: Long,
+    val imageUrl: String? = null,
+    val bookingUrl: String? = null,
+    val address: String = "",
+    val city: String = ""
 )
 
 data class User(

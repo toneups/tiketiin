@@ -41,10 +41,11 @@ fun DetailScreen(
     onSelectTab: (Int) -> Unit,
     onChangeQuantity: (Int) -> Unit,
     onToggleSaved: () -> Unit,
-    onBuy: (eventId: Int, quantity: Int) -> Unit
+    onSelectListing: (Int) -> Unit,onBuy: (eventId: Int, listingId: Int, quantity: Int) -> Unit
 ) {
     val summary = uiState.summary
     val listing = uiState.listing
+    val listings = uiState.listings
 
     if (uiState.isLoading || summary == null) {
         Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
@@ -166,6 +167,87 @@ fun DetailScreen(
                         Text(text = "Seating Plan", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(10.dp))
                         SeatingPlan(highlight = listing?.seatCategory ?: "")
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Text(
+                            text = "Pilihan Tiket Tersedia",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        if (listings.isEmpty()) {
+                            Text(
+                                text = "Belum ada tiket yang tersedia.",
+                                fontSize = 12.sp,
+                                color = TextGray
+                            )
+                        } else {
+                            listings.forEach { ticket ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 5.dp)
+                                        .clickable {
+                                            onSelectListing(ticket.id)
+                                        }
+                                        .border(
+                                            width = if (uiState.selectedListingId == ticket.id) 2.dp else 0.dp,
+                                            color = if (uiState.selectedListingId == ticket.id)
+                                                BluePrimary else Color.Transparent,
+                                            shape = RoundedCornerShape(12.dp)
+                                        ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = FieldGray
+                                    )
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(14.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = ticket.seatCategory,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp
+                                            )
+
+                                            Text(
+                                                text = formatRupiah(ticket.price),
+                                                color = BluePrimary,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(5.dp))
+
+                                        Text(
+                                            text = "Baris: ${ticket.row.ifBlank { "-" }}",
+                                            fontSize = 11.sp,
+                                            color = TextGray
+                                        )
+
+                                        Text(
+                                            text = "Stok tersedia: ${ticket.quantity}",
+                                            fontSize = 11.sp,
+                                            color = TextGray
+                                        )
+
+                                        Text(
+                                            text = "Harga asli: ${formatRupiah(ticket.faceValue)}",
+                                            fontSize = 11.sp,
+                                            color = TextGray
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                     }
                     1 -> {
                         val terms = listOf(
@@ -231,7 +313,11 @@ fun DetailScreen(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Button(
-                    onClick = { onBuy(event.id, uiState.quantity) },
+                    onClick = {
+                        listing?.let {
+                            onBuy(event.id, it.id, uiState.quantity)
+                        }
+                    },
                     enabled = listing != null,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = BluePrimary),
