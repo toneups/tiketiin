@@ -42,7 +42,8 @@ fun SavedScreen(
     onToggleSelected: (Int) -> Unit,
     onRemove: (Int) -> Unit,
     onOpenEvent: (Int) -> Unit,
-    onCheckout: (Int) -> Unit
+    onCheckout: (Int) -> Unit,
+    onRetry: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         Box(modifier = Modifier.shadow(4.dp)) {
@@ -51,25 +52,84 @@ fun SavedScreen(
         Spacer(modifier = Modifier.height(10.dp))
         CategoryChips(selected = uiState.selectedCategory, onSelect = onSelectCategory)
 
+        uiState.errorMessage?.let { message ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = 24.dp,
+                        vertical = 8.dp
+                    ),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = message,
+                    color = RedDark,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                TextButton(
+                    onClick = onRetry,
+                    enabled = !uiState.isLoading &&
+                            uiState.removingEventId == null
+                ) {
+                    Text("Coba Lagi")
+                }
+            }
+        }
+
+
         Box(modifier = Modifier.weight(1f)) {
+
             when {
                 uiState.isLoading -> LoadingBox()
-                uiState.visibleItems.isEmpty() -> EmptyBox(text = "Belum ada event yang kamu simpan.")
+
+                uiState.errorMessage != null &&
+                        uiState.items.isEmpty() -> {
+                }
+
+                uiState.visibleItems.isEmpty() -> {
+                    EmptyBox(
+                        text = "Belum ada event yang kamu simpan."
+                    )
+                }
+
                 else -> LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp),
+                    contentPadding = PaddingValues(
+                        horizontal = 24.dp,
+                        vertical = 10.dp
+                    ),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(uiState.visibleItems) { summary ->
+                    items(
+                        items = uiState.visibleItems,
+                        key = { it.event.id }
+                    ) { summary ->
                         SavedCard(
                             summary = summary,
-                            checked = uiState.selectedEventId == summary.event.id,
-                            onCheck = { onToggleSelected(summary.event.id) },
-                            onRemove = { onRemove(summary.event.id) },
-                            onClick = { onOpenEvent(summary.event.id) }
+                            checked =
+                                uiState.selectedEventId == summary.event.id,
+                            onCheck = {
+                                if (uiState.removingEventId == null) {
+                                    onToggleSelected(summary.event.id)
+                                }
+                            },
+                            onRemove = {
+                                if (uiState.removingEventId == null) {
+                                    onRemove(summary.event.id)
+                                }
+                            },
+                            onClick = {
+                                onOpenEvent(summary.event.id)
+                            }
                         )
                     }
                 }
             }
+
         }
 
         // Bilah bawah: total + Checkout
@@ -95,7 +155,9 @@ fun SavedScreen(
             Spacer(modifier = Modifier.width(12.dp))
             Button(
                 onClick = { uiState.selectedEventId?.let(onCheckout) },
-                enabled = uiState.selectedEventId != null,
+                enabled = uiState.selectedEventId != null &&
+                        !uiState.isLoading &&
+                        uiState.removingEventId == null,
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
             ) {

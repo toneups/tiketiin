@@ -4,6 +4,11 @@ import com.example.tiketiin.data.remote.dto.AuthResponse
 import com.example.tiketiin.data.remote.dto.AuthUserDto
 import com.example.tiketiin.data.remote.dto.LoginRequest
 import com.example.tiketiin.data.remote.dto.RefreshTokenRequest
+import com.example.tiketiin.data.remote.dto.RegisterRequest
+import com.example.tiketiin.data.remote.dto.RegisterResponse
+import com.example.tiketiin.data.remote.dto.UpdatePasswordRequest
+import retrofit2.http.PUT
+import retrofit2.http.Header
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -50,4 +55,15 @@ interface AuthApiService {
 
     ): Response<Unit>
 
+    @POST("auth/v1/signup")
+    suspend fun register(
+        @Body request: RegisterRequest
+    ): RegisterResponse
+
+    // Mengubah kata sandi pengguna yang sedang login
+    @PUT("auth/v1/user")
+    suspend fun updatePassword(
+        @Header("Authorization") authorization: String,
+        @Body request: UpdatePasswordRequest
+    ): Response<Unit>
 }

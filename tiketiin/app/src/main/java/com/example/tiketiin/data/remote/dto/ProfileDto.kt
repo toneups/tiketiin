@@ -18,6 +18,8 @@ data class ProfileDto(
     val isKycVerified: Boolean,
 
     @SerializedName("avatar_url")
-    val avatarUrl: String? = null
+    val avatarUrl: String? = null,
 
+    @SerializedName("recommendation_notifications_enabled")
+    val recommendationNotificationsEnabled: Boolean = true
 )

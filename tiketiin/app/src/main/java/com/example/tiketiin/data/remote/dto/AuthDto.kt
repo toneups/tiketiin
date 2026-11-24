@@ -8,6 +8,26 @@ class LoginRequest(
     val password: String
 )
 
+data class RegisterRequest(
+    val email: String,
+    val password: String,
+    val data: RegisterMetadata
+)
+
+data class RegisterMetadata(
+    val name: String,
+    val phone: String,
+
+    @SerializedName("referral_code")
+    val referralCode: String? = null
+)
+
+// Response signup dapat berisi user tanpa token,
+// tergantung pengaturan konfirmasi email di Supabase.
+data class RegisterResponse(
+    val user: AuthUserDto? = null
+)
+
 // Request memperbarui access token
 class RefreshTokenRequest(
 
@@ -43,4 +63,11 @@ class AuthResponse(
 
     val user: AuthUserDto
 
+)
+
+data class UpdatePasswordRequest(
+    val password: String,
+
+    @SerializedName("current_password")
+    val currentPassword: String
 )
