@@ -20,6 +20,7 @@ import com.example.tiketiin.data.remote.dto.PriceHistoryRequest
 import kotlinx.coroutines.CancellationException
 import com.example.tiketiin.data.auth.SessionManager
 import com.example.tiketiin.data.remote.dto.CreateListingRequest
+import com.example.tiketiin.data.remote.dto.ListingDto
 
 /**
  * Satu-satunya pintu data untuk semua ViewModel (pola sama dengan StudentRepository).
@@ -166,8 +167,35 @@ class DefaultTiketiinRepository(
     }
 
     override suspend fun getListing(listingId: Int): TicketListing? {
-        return source.listings.find { it.id == listingId }
+        // Coba ambil dari Supabase dulu (listing yang baru diterbitkan).
+        val remote = try {
+            AuthenticatedRequest.execute {
+                RetrofitClient.api.getListingById(id = "eq.$listingId")
+            }.firstOrNull()?.toModel()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+        // Kalau tidak ketemu, pakai data dummy seperti sebelumnya.
+        return remote ?: source.listings.find { it.id == listingId }
     }
+
+    private fun ListingDto.toModel() = TicketListing(
+        id = id,
+        eventId = eventId,
+        sellerId = sellerId,
+        seatCategory = seatCategory,
+        row = seatRow,
+        faceValue = faceValue,
+        price = price,
+        quantity = quantity,
+        status = runCatching { ListingStatus.valueOf(status) }
+            .getOrDefault(ListingStatus.AKTIF),
+        views = views,
+        saves = saves,
+        offers = offers
+    )
 
     override suspend fun getMyListings(): List<TicketListing> {
         fakeNetwork()
