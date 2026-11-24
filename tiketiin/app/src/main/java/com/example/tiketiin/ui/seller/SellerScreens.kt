@@ -206,6 +206,18 @@ fun MyListingsScreen(
     var editing by remember { mutableStateOf<TicketListing?>(null) }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
+        // Pesan error untuk aksi di luar dialog (misalnya tombol Hapus gagal)
+        if (editing == null) {
+            val screenError = uiState.priceError
+            if (screenError != null) {
+                Text(
+                    text = screenError,
+                    color = RedDark,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                )
+            }
+        }
         Box(modifier = Modifier.shadow(4.dp)) {
             ScreenTopBar(title = "Kelola Tiket", onBack = onBack)
         }
