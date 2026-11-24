@@ -27,3 +27,18 @@ data class CreateListingRequest(
 data class ListingRowDto(
     @SerializedName("id") val id: Int
 )
+// Satu listing lengkap dari tabel ticket_listings
+data class ListingDto(
+    @SerializedName("id") val id: Int,
+    @SerializedName("event_id") val eventId: Int,
+    @SerializedName("seller_id") val sellerId: String,
+    @SerializedName("seat_category") val seatCategory: String,
+    @SerializedName("seat_row") val seatRow: String,
+    @SerializedName("face_value") val faceValue: Long,
+    @SerializedName("price") val price: Long,
+    @SerializedName("quantity") val quantity: Int,
+    @SerializedName("status") val status: String,
+    @SerializedName("views") val views: Int = 0,
+    @SerializedName("saves") val saves: Int = 0,
+    @SerializedName("offers") val offers: Int = 0
+)

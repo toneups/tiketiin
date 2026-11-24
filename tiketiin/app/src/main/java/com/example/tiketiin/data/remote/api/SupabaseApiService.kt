@@ -12,6 +12,7 @@ import com.example.tiketiin.data.remote.dto.PriceHistoryRequest
 import retrofit2.http.Header
 import com.example.tiketiin.data.remote.dto.CreateListingRequest
 import com.example.tiketiin.data.remote.dto.ListingRowDto
+import com.example.tiketiin.data.remote.dto.ListingDto
 
 interface SupabaseApiService {
 
@@ -111,4 +112,9 @@ interface SupabaseApiService {
         @Header("Prefer") prefer: String = "return=representation",
         @Body body: CreateListingRequest
     ): List<ListingRowDto>
+    @GET("rest/v1/ticket_listings")
+    suspend fun getListingById(
+        @Query("id") id: String,
+        @Query("select") select: String = "*"
+    ): List<ListingDto>
 }
