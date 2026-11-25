@@ -22,6 +22,8 @@ import com.example.tiketiin.data.auth.SessionManager
 import com.example.tiketiin.data.remote.dto.CreateListingRequest
 import com.example.tiketiin.data.remote.dto.ListingDto
 import com.example.tiketiin.data.remote.dto.UpdateListingRequest
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
  * Satu-satunya pintu data untuk semua ViewModel (pola sama dengan StudentRepository).
@@ -33,6 +35,7 @@ interface TiketiinRepository {
     suspend fun login()
     suspend fun logout()
     suspend fun verifyKyc()
+    suspend fun uploadTicketProof(bytes: ByteArray, mimeType: String, fileName: String): String
 
     // Event
     suspend fun getEventSummaries(): List<EventSummary>
@@ -73,6 +76,26 @@ interface TiketiinRepository {
 class DefaultTiketiinRepository(
     private val source: DummyDataSource
 ) : TiketiinRepository {
+    override suspend fun uploadTicketProof(
+        bytes: ByteArray,
+        mimeType: String,
+        fileName: String
+    ): String {
+        val userId = SessionManager.userId
+            ?: error("Silakan login dengan akun Supabase terlebih dahulu.")
+        val path = "$userId/$fileName"
+        val response = AuthenticatedRequest.execute {
+            RetrofitClient.api.uploadTicketProof(
+                path = path,
+                contentType = mimeType,
+                body = bytes.toRequestBody(mimeType.toMediaType())
+            )
+        }
+        check(response.isSuccessful) {
+            "Upload gagal (HTTP ${response.code()})"
+        }
+        return path
+    }
 
     // Meniru jeda jaringan supaya state loading terlihat saat demo.
     private suspend fun fakeNetwork() = delay(350)
