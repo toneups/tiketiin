@@ -200,9 +200,23 @@ fun SellFormScreen(
     onFaceValueChange: (String) -> Unit,
     onPriceChange: (String) -> Unit,
     onToggleProof: () -> Unit,
+    onPickProof: (ByteArray, String, String) -> Unit,
     onSubmit: () -> Unit
 ) {
     val event = uiState.selectedEvent
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val proofPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+            val ext = if (mime == "application/pdf") "pdf" else "jpg"
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (bytes != null) {
+                onPickProof(bytes, mime, "proof-${System.currentTimeMillis()}.$ext")
+            }
+        }
+    }
     var menuOpen by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
@@ -327,7 +341,7 @@ fun SellFormScreen(
                 Text(text = "Bukti tiket", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
-                    modifier = Modifier.fillMaxWidth().clickable(onClick = onToggleProof),
+                    modifier = Modifier.fillMaxWidth().clickable { proofPicker.launch("*/*") },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
@@ -346,7 +360,11 @@ fun SellFormScreen(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = if (uiState.proofAttached) "eticket.pdf" else "Ketuk untuk mengunggah e-ticket",
+                            text = when {
+                                uiState.isUploadingProof -> "Mengunggah..."
+                                uiState.proofAttached -> "Bukti terunggah"
+                                else -> "Ketuk untuk mengunggah e-ticket"
+                            },
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
                         )

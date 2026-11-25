@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import kotlinx.coroutines.CancellationException
 
 data class SellUiState(
     // e-KYC
@@ -34,6 +35,8 @@ data class SellUiState(
     val faceValueText: String = "",
     val priceText: String = "",
     val proofAttached: Boolean = false,
+    val proofPath: String? = null,
+    val isUploadingProof: Boolean = false,
     val formError: String? = null,
 
     // Cek harga wajar
@@ -110,6 +113,30 @@ class SellViewModel(
     fun updateFaceValue(value: String) = _uiState.update { it.copy(faceValueText = value.filter { ch -> ch.isDigit() }.take(9)) }
     fun updatePrice(value: String) = _uiState.update { it.copy(priceText = value.filter { ch -> ch.isDigit() }.take(9)) }
     fun toggleProof() = _uiState.update { it.copy(proofAttached = !it.proofAttached) }
+    // Unggah bukti tiket ke Supabase Storage (bucket ticket-proofs)
+    fun uploadProof(bytes: ByteArray, mimeType: String, fileName: String) {
+        if (_uiState.value.isUploadingProof) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isUploadingProof = true, formError = null) }
+            try {
+                val path = repository.uploadTicketProof(bytes, mimeType, fileName)
+                _uiState.update {
+                    it.copy(isUploadingProof = false, proofAttached = true, proofPath = path)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isUploadingProof = false,
+                        proofAttached = false,
+                        proofPath = null,
+                        formError = "Gagal mengunggah bukti: ${e.message ?: "coba lagi"}"
+                    )
+                }
+            }
+        }
+    }
 
     // Validasi form, lalu jalankan Fungsi 1 (cek harga wajar).
     fun submitForm(onValid: () -> Unit) {

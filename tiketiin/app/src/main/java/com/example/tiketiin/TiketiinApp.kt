@@ -501,6 +501,7 @@ fun TiketiinApp() {
                     onFaceValueChange = sellViewModel::updateFaceValue,
                     onPriceChange = sellViewModel::updatePrice,
                     onToggleProof = sellViewModel::toggleProof,
+                    onPickProof = { bytes, mime, name -> sellViewModel.uploadProof(bytes, mime, name) },
                     onSubmit = {
                         sellViewModel.submitForm { navController.navigate(Routes.PRICE_CHECK) }
                     }
