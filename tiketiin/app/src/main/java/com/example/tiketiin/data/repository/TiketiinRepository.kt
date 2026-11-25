@@ -24,6 +24,7 @@ import com.example.tiketiin.data.remote.dto.ListingDto
 import com.example.tiketiin.data.remote.dto.UpdateListingRequest
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import com.example.tiketiin.data.local.entity.CachedListingEntity
 
 /**
  * Satu-satunya pintu data untuk semua ViewModel (pola sama dengan StudentRepository).
@@ -74,7 +75,8 @@ interface TiketiinRepository {
 }
 
 class DefaultTiketiinRepository(
-    private val source: DummyDataSource
+    private val source: DummyDataSource,
+    private val listingDao: com.example.tiketiin.data.local.dao.ListingDao? = null
 ) : TiketiinRepository {
     override suspend fun uploadTicketProof(
         bytes: ByteArray,
@@ -225,15 +227,62 @@ class DefaultTiketiinRepository(
         val sellerId = SessionManager.userId
             ?: return source.listings.filter { it.sellerId == me }
         return try {
-            AuthenticatedRequest.execute {
+            val remote = AuthenticatedRequest.execute {
                 RetrofitClient.api.getMyListings(sellerId = "eq.$sellerId")
-            }.map { it.toModel() }
+            }
+            // Simpan salinan ke Room (cache)
+            try {
+                listingDao?.replaceListings(sellerId, remote.map { it.toEntity() })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // gagal menyimpan cache tidak boleh menggagalkan daftar
+            }
+            remote.map { it.toModel() }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            source.listings.filter { it.sellerId == me }
+            // Offline / token kedaluwarsa: pakai cache Room, lalu dummy sebagai cadangan terakhir
+            val cached = try {
+                listingDao?.getListingsBySeller(sellerId)?.map { it.toModel() }
+            } catch (ex: Exception) {
+                null
+            }
+            if (!cached.isNullOrEmpty()) cached
+            else source.listings.filter { it.sellerId == me }
         }
     }
+
+    private fun ListingDto.toEntity() = CachedListingEntity(
+        id = id,
+        eventId = eventId,
+        sellerId = sellerId,
+        seatCategory = seatCategory,
+        seatRow = seatRow,
+        faceValue = faceValue,
+        price = price,
+        quantity = quantity,
+        status = status,
+        views = views,
+        saves = saves,
+        offers = offers
+    )
+
+    private fun CachedListingEntity.toModel() = TicketListing(
+        id = id,
+        eventId = eventId,
+        sellerId = sellerId,
+        seatCategory = seatCategory,
+        row = seatRow,
+        faceValue = faceValue,
+        price = price,
+        quantity = quantity,
+        status = runCatching { ListingStatus.valueOf(status) }
+            .getOrDefault(ListingStatus.AKTIF),
+        views = views,
+        saves = saves,
+        offers = offers
+    )
 
     override suspend fun addListing(listing: TicketListing): Int {
         val sellerId = SessionManager.userId

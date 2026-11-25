@@ -79,7 +79,13 @@ fun TiketiinApp() {
     val scope = rememberCoroutineScope()
 
     // Sumber data sementara masih dummy. Nanti cukup ganti di baris ini.
-    val repository = remember { DefaultTiketiinRepository(DummyDataSource) }
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val repository = remember {
+        DefaultTiketiinRepository(
+            DummyDataSource,
+            com.example.tiketiin.data.local.DatabaseProvider.getDatabase(appContext).listingDao()
+        )
+    }
 
     val context = LocalContext.current.applicationContext
 
