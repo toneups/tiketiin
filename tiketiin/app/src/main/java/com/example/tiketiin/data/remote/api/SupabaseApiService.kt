@@ -15,6 +15,9 @@ import com.example.tiketiin.data.remote.dto.ListingRowDto
 import com.example.tiketiin.data.remote.dto.ListingDto
 import retrofit2.http.PATCH
 import com.example.tiketiin.data.remote.dto.UpdateListingRequest
+import okhttp3.RequestBody
+import retrofit2.http.Path
+import retrofit2.http.PUT
 
 interface SupabaseApiService {
 
@@ -134,4 +137,13 @@ interface SupabaseApiService {
         @Header("Prefer") prefer: String = "return=minimal",
         @Body body: UpdateListingRequest
     )
+    // Upload bukti tiket ke bucket private ticket-proofs
+    // path wajib diawali UUID akun: "<userId>/<namaFile>"
+    @POST("storage/v1/object/ticket-proofs/{path}")
+    suspend fun uploadTicketProof(
+        @Path("path", encoded = true) path: String,
+        @Header("Content-Type") contentType: String,
+        @Header("x-upsert") upsert: String = "true",
+        @Body body: RequestBody
+    ): retrofit2.Response<okhttp3.ResponseBody>
 }
