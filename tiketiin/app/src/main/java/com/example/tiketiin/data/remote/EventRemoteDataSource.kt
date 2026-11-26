@@ -3,6 +3,7 @@ package com.example.tiketiin.data.remote
 import com.example.tiketiin.data.remote.api.SupabaseApiService
 import com.example.tiketiin.data.remote.dto.EventDto
 import com.example.tiketiin.data.remote.dto.VenueDto
+import com.example.tiketiin.data.remote.dto.TicketListingDto
 
 class EventRemoteDataSource(
     private val api: SupabaseApiService = RetrofitClient.api
@@ -32,6 +33,18 @@ class EventRemoteDataSource(
         return api.getEventWithListings(
             id = "eq.$eventId"
         ).firstOrNull()
+    }
+
+    suspend fun getActiveTicketListings(
+        eventId: Int
+    ): List<TicketListingDto> {
+        require(eventId > 0) {
+            "ID event tidak valid."
+        }
+
+        return api.getActiveTicketListings(
+            eventId = "eq.$eventId"
+        )
     }
 
 }

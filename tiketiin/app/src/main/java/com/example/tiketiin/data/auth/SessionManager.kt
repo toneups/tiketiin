@@ -1,11 +1,12 @@
+
 package com.example.tiketiin.data.auth
 
 import android.content.Context
+import android.os.SystemClock
 import com.example.tiketiin.data.remote.RetrofitClient
 import com.example.tiketiin.data.remote.dto.AuthResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import android.os.SystemClock
 
 object SessionManager {
 
@@ -38,7 +39,6 @@ object SessionManager {
         get() = session != null
 
     suspend fun initialize(context: Context) {
-
         if (isInitialized) return
 
         storage = SecureSessionStorage(
@@ -46,15 +46,10 @@ object SessionManager {
         )
 
         session = withContext(Dispatchers.IO) {
-
             try {
-
                 storage.loadSession()
-
             } catch (e: Exception) {
-
                 storage.clearSession()
-
                 null
             }
         }
@@ -67,15 +62,12 @@ object SessionManager {
     }
 
     suspend fun saveSession(response: AuthResponse) {
-
         check(isInitialized) {
             "SessionManager belum diinisialisasi"
         }
 
         withContext(Dispatchers.IO) {
-
             storage.saveSession(response)
-
         }
 
         session = response
@@ -90,33 +82,25 @@ object SessionManager {
     }
 
     suspend fun clearSession() {
-
         session = null
-
         fallbackExpiryElapsedMs = null
 
         RetrofitClient.setAccessToken(null)
 
         if (isInitialized) {
-
             withContext(Dispatchers.IO) {
-
                 storage.clearSession()
-
             }
         }
     }
 
     fun isTokenExpired(): Boolean {
-
         if (!hasSession) return true
 
         val expiry = expiresAt
 
         if (expiry != null) {
-
             val now = System.currentTimeMillis() / 1000
-
             return now >= expiry - 60
         }
 

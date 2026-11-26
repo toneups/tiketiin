@@ -34,6 +34,8 @@ import com.example.tiketiin.domain.*
 import com.example.tiketiin.ui.components.*
 import com.example.tiketiin.ui.theme.*
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Notifications
 
 private data class HomeCategory(
     val label: String,
@@ -58,9 +60,13 @@ fun HomeScreen(
     uiState: HomeUiState,
     onSearch: (String) -> Unit,
     onOpenSaved: () -> Unit,
+    onOpenNotifications: () -> Unit,
+    unreadNotificationCount: Int?,
     onOpenEvent: (Int) -> Unit,
     onSelectCategory: (EventCategory?) -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onToggleSaved: (Int) -> Unit,
+    onRetryWishlist: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -118,6 +124,62 @@ fun HomeScreen(
                         modifier = Modifier.size(20.dp)
                     )
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+
+                Box(
+                    modifier = Modifier.size(44.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
+                            .clickable(onClick = onOpenNotifications),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Notifications,
+                            contentDescription = "Buka notifikasi",
+                            tint = TextDark,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    if (
+                        unreadNotificationCount != null &&
+                        unreadNotificationCount > 0
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .background(
+                                    color = Color(0xFFE5395B),
+                                    shape = CircleShape
+                                )
+                                .defaultMinSize(
+                                    minWidth = 18.dp,
+                                    minHeight = 18.dp
+                                )
+                                .padding(horizontal = 3.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (unreadNotificationCount > 9) {
+                                    "9+"
+                                } else {
+                                    unreadNotificationCount.toString()
+                                },
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
             }
         }
 
@@ -211,7 +273,7 @@ fun HomeScreen(
                 SectionHeader(
                     title = "Flash Ticket",
                     actionLabel = "Lihat semua",
-                    onAction = { onSearch("all") },
+                    onAction = { onSearch("flash") },
                     modifier = Modifier.padding(horizontal = 24.dp)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -219,12 +281,64 @@ fun HomeScreen(
                     contentPadding = PaddingValues(horizontal = 24.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(uiState.flashTickets) { summary ->
-                        EventGridCard(
-                            summary = summary,
-                            onClick = { onOpenEvent(summary.event.id) },
+
+                    items(
+                        items = uiState.flashTickets,
+                        key = { it.event.id }
+                    ) { summary ->
+
+                        val eventId = summary.event.id
+
+                        Box(
                             modifier = Modifier.width(150.dp)
-                        )
+                        ) {
+                            EventGridCard(
+                                summary = summary,
+                                onClick = {
+                                    onOpenEvent(eventId)
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            IconButton(
+                                onClick = {
+                                    onToggleSaved(eventId)
+                                },
+                                enabled = uiState.isWishlistLoaded &&
+                                        !uiState.isWishlistLoading &&
+                                        eventId !in uiState.wishlistBusyIds,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(4.dp)
+                                    .size(36.dp)
+                                    .background(
+                                        color = Color.White,
+                                        shape = CircleShape
+                                    )
+                            ) {
+                                val isSaved =
+                                    eventId in uiState.savedEventIds
+
+                                Icon(
+                                    imageVector = if (isSaved) {
+                                        AppIcons.Bookmark
+                                    } else {
+                                        AppIcons.BookmarkBorder
+                                    },
+                                    contentDescription = if (isSaved) {
+                                        "Hapus event tersimpan"
+                                    } else {
+                                        "Simpan event"
+                                    },
+                                    tint = if (isSaved) {
+                                        BluePrimary
+                                    } else {
+                                        TextGray
+                                    },
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -232,12 +346,35 @@ fun HomeScreen(
                 SectionHeader(
                     title = "Event Populer",
                     actionLabel = "Lihat semua",
-                    onAction = { onSearch("all") },
+                    onAction = { onSearch("popular") },
                     modifier = Modifier.padding(horizontal = 24.dp)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 CategoryChips(selected = uiState.selectedCategory, onSelect = onSelectCategory)
                 Spacer(modifier = Modifier.height(8.dp))
+
+                uiState.wishlistError?.let { message ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = message,
+                            color = RedDark,
+                            fontSize = 11.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        TextButton(
+                            onClick = onRetryWishlist,
+                            enabled = !uiState.isWishlistLoading
+                        ) {
+                            Text("Coba Lagi")
+                        }
+                    }
+                }
 
                 if (uiState.filteredPopular.isEmpty()) {
                     EmptyBox(text = "Belum ada event di kategori ini.")
@@ -246,9 +383,34 @@ fun HomeScreen(
                         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(uiState.filteredPopular) { summary ->
-                            PopularCard(summary = summary, onClick = { onOpenEvent(summary.event.id) })
+
+                        items(
+                            items = uiState.filteredPopular,
+                            key = { it.event.id }
+                        ) { summary ->
+
+                            val eventId = summary.event.id
+
+                            PopularCard(
+                                summary = summary,
+
+                                onClick = {
+                                    onOpenEvent(eventId)
+                                },
+
+                                isSaved = eventId in uiState.savedEventIds,
+
+                                bookmarkEnabled =
+                                    uiState.isWishlistLoaded &&
+                                            !uiState.isWishlistLoading &&
+                                            eventId !in uiState.wishlistBusyIds,
+
+                                onToggleSaved = {
+                                    onToggleSaved(eventId)
+                                }
+                            )
                         }
+
                     }
                 }
             }
@@ -258,7 +420,13 @@ fun HomeScreen(
 
 // Kartu lebar pada bagian Event Populer
 @Composable
-private fun PopularCard(summary: EventSummary, onClick: () -> Unit) {
+private fun PopularCard(
+    summary: EventSummary,
+    onClick: () -> Unit,
+    isSaved: Boolean,
+    bookmarkEnabled: Boolean,
+    onToggleSaved: () -> Unit
+) {
     val event = summary.event
     Column(
         modifier = Modifier
@@ -270,7 +438,9 @@ private fun PopularCard(summary: EventSummary, onClick: () -> Unit) {
     ) {
         PosterBox(event = event, titleSize = 18.sp, modifier = Modifier.fillMaxWidth().height(120.dp))
         Column(modifier = Modifier.padding(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     text = event.name,
                     fontSize = 13.sp,
@@ -279,7 +449,31 @@ private fun PopularCard(summary: EventSummary, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
-                CategoryTag(category = event.category)
+
+                IconButton(
+                    onClick = onToggleSaved,
+                    enabled = bookmarkEnabled,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isSaved) {
+                            AppIcons.Bookmark
+                        } else {
+                            AppIcons.BookmarkBorder
+                        },
+                        contentDescription = if (isSaved) {
+                            "Hapus event tersimpan"
+                        } else {
+                            "Simpan event"
+                        },
+                        tint = if (isSaved) {
+                            BluePrimary
+                        } else {
+                            TextGray
+                        },
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(2.dp))
             Row {

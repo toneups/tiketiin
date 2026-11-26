@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import kotlin.coroutines.cancellation.CancellationException
+import com.example.tiketiin.data.repository.WishlistRepository
 
 data class HomeUiState(
     val isLoading: Boolean = false,
@@ -24,7 +25,12 @@ data class HomeUiState(
 
     // Status data cache
     val isShowingCache: Boolean = false,
-    val isRefreshing: Boolean = false
+    val isRefreshing: Boolean = false,
+    val savedEventIds: Set<Int> = emptySet(),
+    val isWishlistLoading: Boolean = false,
+    val isWishlistLoaded: Boolean = false,
+    val wishlistBusyIds: Set<Int> = emptySet(),
+    val wishlistError: String? = null
 ) {
     val filteredPopular: List<EventSummary>
         get() = if (selectedCategory == null) {
@@ -37,7 +43,8 @@ data class HomeUiState(
 }
 
 class HomeViewModel(
-    private val repository: EventCatalogRepository
+    private val repository: EventCatalogRepository,
+    private val wishlistRepository: WishlistRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -170,4 +177,119 @@ class HomeViewModel(
             it.copy(selectedCategory = category)
         }
     }
+
+
+    fun loadWishlist() {
+        val current = _uiState.value
+
+        if (current.isWishlistLoading ||
+            current.wishlistBusyIds.isNotEmpty()
+        ) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isWishlistLoading = true,
+                    wishlistError = null
+                )
+            }
+
+            try {
+                val savedIds =
+                    wishlistRepository.getSavedEventIds()
+
+                _uiState.update {
+                    it.copy(
+                        savedEventIds = savedIds,
+                        isWishlistLoading = false,
+                        isWishlistLoaded = true,
+                        wishlistError = null
+                    )
+                }
+
+            } catch (e: CancellationException) {
+                throw e
+
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isWishlistLoading = false,
+                        isWishlistLoaded = false,
+                        wishlistError =
+                            "Gagal memuat bookmark. Coba lagi."
+                    )
+                }
+            }
+        }
+    }
+
+    fun toggleSaved(eventId: Int) {
+        val current = _uiState.value
+
+        if (!current.isWishlistLoaded ||
+            current.isWishlistLoading ||
+            eventId in current.wishlistBusyIds
+        ) return
+
+        // Hanya event yang benar-benar ada pada
+        // katalog Beranda yang boleh disimpan.
+        val existsInCatalog =
+            current.popularEvents.any { it.event.id == eventId } ||
+                    current.flashTickets.any { it.event.id == eventId }
+
+        if (!existsInCatalog) return
+
+        viewModelScope.launch {
+            val wasSaved =
+                eventId in _uiState.value.savedEventIds
+
+            _uiState.update {
+                it.copy(
+                    wishlistBusyIds =
+                        it.wishlistBusyIds + eventId,
+                    wishlistError = null
+                )
+            }
+
+            try {
+                if (wasSaved) {
+                    wishlistRepository.removeSavedEvent(eventId)
+                } else {
+                    wishlistRepository.addSavedEvent(eventId)
+                }
+
+                _uiState.update {
+                    it.copy(
+                        savedEventIds =
+                            if (wasSaved) {
+                                it.savedEventIds - eventId
+                            } else {
+                                it.savedEventIds + eventId
+                            },
+                        wishlistError = null
+                    )
+                }
+
+            } catch (e: CancellationException) {
+                throw e
+
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        wishlistError =
+                            "Bookmark gagal diperbarui. Coba lagi."
+                    )
+                }
+
+            } finally {
+                _uiState.update {
+                    it.copy(
+                        wishlistBusyIds =
+                            it.wishlistBusyIds - eventId
+                    )
+                }
+            }
+        }
+    }
+
 }

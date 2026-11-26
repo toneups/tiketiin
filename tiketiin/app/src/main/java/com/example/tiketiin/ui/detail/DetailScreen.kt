@@ -40,12 +40,12 @@ fun DetailScreen(
     onBack: () -> Unit,
     onSelectTab: (Int) -> Unit,
     onChangeQuantity: (Int) -> Unit,
+    onSelectListing: (Int) -> Unit,
     onToggleSaved: () -> Unit,
-    onSelectListing: (Int) -> Unit,onBuy: (eventId: Int, listingId: Int, quantity: Int) -> Unit
+    onBuy: (eventId: Int, listingId: Int, quantity: Int) -> Unit
 ) {
     val summary = uiState.summary
     val listing = uiState.listing
-    val listings = uiState.listings
 
     if (uiState.isLoading || summary == null) {
         Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
@@ -96,7 +96,13 @@ fun DetailScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (listing != null) formatRupiah(listing.price) else "Tiket habis",
+                            text = if (listing != null) {
+                                formatRupiah(listing.price)
+                            } else if (summary.ticketCount > 0) {
+                                "Mulai ${formatRupiah(summary.lowestPrice)}"
+                            } else {
+                                "Tiket tidak tersedia"
+                            },
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = BluePrimary
@@ -163,114 +169,141 @@ fun DetailScreen(
                         }
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(text = event.description, fontSize = 12.sp, color = TextGray)
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Text(text = "Seating Plan", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(modifier = Modifier.height(10.dp))
-                        SeatingPlan(highlight = listing?.seatCategory ?: "")
-                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
-                            text = "Pilihan Tiket Tersedia",
+                            text = "Pilih Tiket",
                             fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextDark
                         )
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        if (listings.isEmpty()) {
+                        if (uiState.listings.isEmpty()) {
                             Text(
-                                text = "Belum ada tiket yang tersedia.",
+                                text = "Belum ada tiket tersedia untuk event ini.",
                                 fontSize = 12.sp,
                                 color = TextGray
                             )
                         } else {
-                            listings.forEach { ticket ->
-                                Card(
+                            uiState.listings.forEach { ticket ->
+
+                                val isSelected = listing?.id == ticket.id
+
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 5.dp)
+                                        .padding(bottom = 8.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .border(
+                                            width = if (isSelected) 2.dp else 1.dp,
+                                            color = if (isSelected) {
+                                                BluePrimary
+                                            } else {
+                                                Color(0xFFE0E0E0)
+                                            },
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
                                         .clickable {
                                             onSelectListing(ticket.id)
                                         }
-                                        .border(
-                                            width = if (uiState.selectedListingId == ticket.id) 2.dp else 0.dp,
-                                            color = if (uiState.selectedListingId == ticket.id)
-                                                BluePrimary else Color.Transparent,
-                                            shape = RoundedCornerShape(12.dp)
-                                        ),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = FieldGray
-                                    )
+                                        .padding(12.dp)
                                 ) {
-                                    Column(
-                                        modifier = Modifier.padding(14.dp)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        Column(
+                                            modifier = Modifier.weight(1f)
                                         ) {
                                             Text(
                                                 text = ticket.seatCategory,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = TextDark
                                             )
 
                                             Text(
-                                                text = formatRupiah(ticket.price),
-                                                color = BluePrimary,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp
+                                                text = "Baris: ${ticket.row}",
+                                                fontSize = 11.sp,
+                                                color = TextGray
                                             )
                                         }
 
-                                        Spacer(modifier = Modifier.height(5.dp))
-
-                                        Text(
-                                            text = "Baris: ${ticket.row.ifBlank { "-" }}",
-                                            fontSize = 11.sp,
-                                            color = TextGray
-                                        )
-
-                                        Text(
-                                            text = "Stok tersedia: ${ticket.quantity}",
-                                            fontSize = 11.sp,
-                                            color = TextGray
-                                        )
-
-                                        Text(
-                                            text = "Harga asli: ${formatRupiah(ticket.faceValue)}",
-                                            fontSize = 11.sp,
-                                            color = TextGray
+                                        RadioButton(
+                                            selected = isSelected,
+                                            onClick = {
+                                                onSelectListing(ticket.id)
+                                            },
+                                            colors = RadioButtonDefaults.colors(
+                                                selectedColor = BluePrimary
+                                            )
                                         )
                                     }
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Text(
+                                        text = formatRupiah(ticket.price),
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = BluePrimary
+                                    )
+
+                                    Text(
+                                        text = "Stok tersedia: ${ticket.quantity} tiket",
+                                        fontSize = 11.sp,
+                                        color = TextGray
+                                    )
                                 }
                             }
                         }
 
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(text = "Seating Plan", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        SeatingPlan(highlight = listing?.seatCategory ?: "")
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "Ilustrasi kategori kursi, bukan denah resmi venue.",
+                            fontSize = 10.sp,
+                            color = TextGray
+                        )
+
                     }
                     1 -> {
-                        val terms = listOf(
-                            "Tiket yang dijual sudah diverifikasi dan dananya ditahan (escrow) sampai tiket terbukti valid.",
-                            "Nama pada tiket mengikuti data pemesan. Gunakan surat pindah kuasa bila diminta penyelenggara.",
-                            "Pembayaran harus selesai dalam 10 menit setelah tiket dikunci.",
-                            "Uang kembali 100% bila tiket terbukti tidak valid."
+                        Text(
+                            text = "Ketentuan transaksi akan ditampilkan " +
+                                    "setelah sistem pembelian terintegrasi.",
+                            fontSize = 12.sp,
+                            color = TextGray
                         )
-                        terms.forEachIndexed { index, term ->
-                            Text(
-                                text = "${index + 1}. $term",
-                                fontSize = 12.sp,
-                                color = TextGray,
-                                modifier = Modifier.padding(vertical = 3.dp)
-                            )
-                        }
                     }
+
                     else -> {
-                        ReviewItem(name = "Dimas", stars = 5, text = "Tiket asli, proses cepat. Penjual responsif.")
-                        ReviewItem(name = "Sinta", stars = 4, text = "Aman karena dananya ditahan dulu. Recommended.")
+                        Text(
+                            text = "Belum ada ulasan terverifikasi.",
+                            fontSize = 12.sp,
+                            color = TextGray
+                        )
                     }
                 }
             }
+        }
+
+        uiState.actionError?.let { message ->
+            Text(
+                text = message,
+                color = Color(0xFFB42318),
+                fontSize = 11.sp,
+                modifier = Modifier.padding(
+                    horizontal = 24.dp,
+                    vertical = 6.dp
+                )
+            )
         }
 
         // Bilah bawah: harga, jumlah, simpan, beli
@@ -284,18 +317,44 @@ fun DetailScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = "Harga Tiket", fontSize = 9.sp, color = TextDark)
-                    Text(text = formatRupiah(uiState.totalPrice), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = "Harga Tiket",
+                        fontSize = 9.sp,
+                        color = TextDark
+                    )
+
+                    Text(
+                        text = if (listing != null) {
+                            formatRupiah(uiState.totalPrice)
+                        } else {
+                            "Mulai ${formatRupiah(summary.lowestPrice)}"
+                        },
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
-                QuantityButton(label = "−", onClick = { onChangeQuantity(-1) })
-                Text(
-                    text = uiState.quantity.toString(),
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(horizontal = 10.dp)
-                )
-                QuantityButton(label = "+", onClick = { onChangeQuantity(1) })
+
+                if (listing != null) {
+                    QuantityButton(
+                        label = "−",
+                        onClick = { onChangeQuantity(-1) }
+                    )
+
+                    Text(
+                        text = uiState.quantity.toString(),
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    )
+
+                    QuantityButton(
+                        label = "+",
+                        onClick = { onChangeQuantity(1) }
+                    )
+                }
             }
+
             Spacer(modifier = Modifier.height(6.dp))
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
@@ -306,12 +365,18 @@ fun DetailScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (summary.isSaved) AppIcons.Bookmark else AppIcons.BookmarkBorder,
+                        imageVector = if (summary.isSaved) {
+                            AppIcons.Bookmark
+                        } else {
+                            AppIcons.BookmarkBorder
+                        },
                         contentDescription = "Simpan event",
                         tint = BluePrimary
                     )
                 }
+
                 Spacer(modifier = Modifier.width(12.dp))
+
                 Button(
                     onClick = {
                         listing?.let {
@@ -320,24 +385,42 @@ fun DetailScreen(
                     },
                     enabled = listing != null,
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BluePrimary),
-                    modifier = Modifier.weight(1f).height(44.dp)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = BluePrimary
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
                 ) {
-                    Text(text = "Beli Tiket", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = "Beli Tiket",
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }
-    }
 
-    if (showOfferInfo) {
-        AlertDialog(
-            onDismissRequest = { showOfferInfo = false },
-            confirmButton = {
-                TextButton(onClick = { showOfferInfo = false }) { Text(text = "Mengerti") }
-            },
-            title = { Text(text = "Ajukan Penawaran") },
-            text = { Text(text = "Fitur nego harga dengan penjual akan tersedia di versi berikutnya.") }
-        )
+        // Dialog informasi penawaran
+        if (showOfferInfo) {
+            AlertDialog(
+                onDismissRequest = { showOfferInfo = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = { showOfferInfo = false }
+                    ) {
+                        Text(text = "Mengerti")
+                    }
+                },
+                title = {
+                    Text(text = "Ajukan Penawaran")
+                },
+                text = {
+                    Text(
+                        text = "Fitur nego harga dengan penjual akan tersedia di versi berikutnya."
+                    )
+                }
+            )
+        }
     }
 }
 

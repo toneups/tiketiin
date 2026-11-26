@@ -102,28 +102,94 @@ fun SearchScreen(
         }
 
         Spacer(modifier = Modifier.height(10.dp))
+        val sectionTitle = when (uiState.mode) {
+            "flash" -> "Semua Flash Ticket"
+            "popular" -> "Event Populer"
+            else -> null
+        }
+
+        if (sectionTitle != null) {
+            Text(
+                text = sectionTitle,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextDark,
+                modifier = Modifier.padding(
+                    horizontal = 24.dp,
+                    vertical = 12.dp
+                )
+            )
+        }
         CategoryChips(selected = uiState.category, onSelect = onSelectCategory)
         Text(
-            text = if (uiState.sortByCheapest) "Urut: harga terendah" else "Urut: tanggal terdekat",
+            text = when {
+                uiState.sortByCheapest ->
+                    "Urut: harga terendah"
+
+                uiState.mode == "flash" ->
+                    "Urut: promo segera berakhir"
+
+                uiState.mode == "popular" ->
+                    "Urut: paling populer"
+
+                else ->
+                    "Urut: tanggal terdekat"
+            },
             fontSize = 10.sp,
             color = TextGray,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
+            modifier = Modifier.padding(
+                horizontal = 24.dp,
+                vertical = 4.dp
+            )
         )
 
+
         val error = uiState.errorMessage
+
+        if (uiState.bookmarkError != null) {
+            Text(
+                text = uiState.bookmarkError,
+                color = Color(0xFFB42318),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(
+                    horizontal = 24.dp,
+                    vertical = 8.dp
+                )
+            )
+        }
+
         when {
-            uiState.isLoading && uiState.results.isEmpty() -> LoadingBox()
-            error != null -> ErrorBox(message = error, onRetry = onRetry)
-            uiState.results.isEmpty() -> EmptyBox(text = "Event tidak ditemukan.\nCoba kata kunci atau kategori lain.")
+            uiState.isLoading -> LoadingBox()
+
+            error != null -> ErrorBox(
+                message = error,
+                onRetry = onRetry
+            )
+
+            !uiState.hasSearched -> EmptyBox(
+                text = "Cari event berdasarkan nama, kota, atau kategori."
+            )
+
+            uiState.results.isEmpty() -> EmptyBox(
+                text = "Event tidak ditemukan.\nCoba kata kunci atau kategori lain."
+            )
+
             else -> LazyColumn(
-                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(
+                    horizontal = 24.dp,
+                    vertical = 8.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(uiState.results) { summary ->
                     EventListCard(
                         summary = summary,
-                        onClick = { onOpenEvent(summary.event.id) },
-                        onToggleSave = { onToggleSaved(summary.event.id) }
+                        onClick = {
+                            onOpenEvent(summary.event.id)
+                        },
+                        onToggleSave = {
+                            onToggleSaved(summary.event.id)
+                        }
                     )
                 }
             }
