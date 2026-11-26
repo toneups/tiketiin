@@ -24,6 +24,11 @@ object Routes {
     fun detail(eventId: Int): String = "detail/$eventId"
     const val ORDER_FORM = "order_form"
     const val PAYMENT = "payment"
+
+    const val PAYMENT_INSTRUCTION = "payment_instruction"
+
+    fun paymentInstruction(orderId: Int): String =
+        "payment_instruction/$orderId"
     const val PAYMENT_SUCCESS = "payment_success/{orderId}"
     fun paymentSuccess(orderId: Int): String = "payment_success/$orderId"
     const val TICKET = "ticket/{orderId}"

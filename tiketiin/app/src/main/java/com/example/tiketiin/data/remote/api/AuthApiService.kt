@@ -3,7 +3,6 @@ package com.example.tiketiin.data.remote.api
 import com.example.tiketiin.data.remote.dto.AuthResponse
 import com.example.tiketiin.data.remote.dto.AuthUserDto
 import com.example.tiketiin.data.remote.dto.LoginRequest
-import com.example.tiketiin.data.remote.dto.RefreshTokenRequest
 import com.example.tiketiin.data.remote.dto.RegisterRequest
 import com.example.tiketiin.data.remote.dto.RegisterResponse
 import com.example.tiketiin.data.remote.dto.UpdatePasswordRequest
@@ -14,6 +13,7 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Query
+import com.example.tiketiin.data.remote.dto.RefreshTokenRequest
 
 interface AuthApiService {
 

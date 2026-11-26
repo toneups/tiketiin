@@ -26,6 +26,8 @@ data class OrdersUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val isConfirming: Boolean = false,
+    val isRefunding: Boolean = false,
+    val successMessage: String? = null,
     val error: String? = null,
     val selectedTab: Int = 0,
     val selectedStatus: OrderStatus = OrderStatus.DIPROSES,
@@ -187,6 +189,54 @@ class OrdersViewModel(
                     it.copy(isConfirming = false)
                 }
             }
+        }
+    }
+
+    fun refundOrder(orderId: Int) {
+        if (orderId <= 0 || _uiState.value.isRefunding) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isRefunding = true,
+                    error = null,
+                    successMessage = null
+                )
+            }
+
+            try {
+                repository.refundOrder(orderId)
+
+                refreshOrders()
+
+                _uiState.update {
+                    it.copy(
+                        successMessage = "Refund berhasil diproses."
+                    )
+                }
+
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        error = e.message ?: "Gagal memproses refund."
+                    )
+                }
+            } finally {
+                _uiState.update {
+                    it.copy(isRefunding = false)
+                }
+            }
+        }
+    }
+
+    fun clearMessage() {
+        _uiState.update {
+            it.copy(
+                error = null,
+                successMessage = null
+            )
         }
     }
 }

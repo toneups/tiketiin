@@ -7,6 +7,7 @@ import com.example.tiketiin.data.remote.dto.CreateOrderRequestDto
 import com.example.tiketiin.data.remote.dto.OrderDto
 import com.example.tiketiin.data.remote.dto.PayOrderRequestDto
 import com.example.tiketiin.data.remote.dto.ValidateTicketRequestDto
+import com.example.tiketiin.data.remote.dto.RefundOrderRequestDto
 
 class OrderRemoteDataSource(
     private val api: SupabaseApiService = RetrofitClient.api
@@ -20,8 +21,12 @@ class OrderRemoteDataSource(
         buyerPhone: String,
         paymentMethod: String
     ): Int {
-        require(listingId > 0) { "ID listing tidak valid." }
-        require(quantity > 0) { "Jumlah tiket harus lebih dari 0." }
+        require(listingId > 0) {
+            "ID listing tidak valid."
+        }
+        require(quantity > 0) {
+            "Jumlah tiket harus lebih dari 0."
+        }
 
         val request = CreateOrderRequestDto(
             listingId = listingId,
@@ -42,7 +47,9 @@ class OrderRemoteDataSource(
     }
 
     suspend fun getOrderById(orderId: Int): OrderDto? {
-        require(orderId > 0) { "ID pesanan tidak valid." }
+        require(orderId > 0) {
+            "ID pesanan tidak valid."
+        }
 
         return api.getOrderById(
             id = "eq.$orderId"
@@ -53,7 +60,9 @@ class OrderRemoteDataSource(
         orderId: Int,
         paymentMethod: String
     ): String {
-        require(orderId > 0) { "ID pesanan tidak valid." }
+        require(orderId > 0) {
+            "ID pesanan tidak valid."
+        }
         require(paymentMethod.isNotBlank()) {
             "Metode pembayaran tidak boleh kosong."
         }
@@ -71,7 +80,9 @@ class OrderRemoteDataSource(
     }
 
     suspend fun getBuyerOrders(buyerId: String): List<OrderDto> {
-        require(buyerId.isNotBlank()) { "ID pembeli tidak valid." }
+        require(buyerId.isNotBlank()) {
+            "ID pembeli tidak valid."
+        }
 
         return api.getBuyerOrders(
             buyerId = "eq.$buyerId"
@@ -79,7 +90,9 @@ class OrderRemoteDataSource(
     }
 
     suspend fun getSellerOrders(sellerId: String): List<OrderDto> {
-        require(sellerId.isNotBlank()) { "ID penjual tidak valid." }
+        require(sellerId.isNotBlank()) {
+            "ID penjual tidak valid."
+        }
 
         return api.getSellerOrders(
             sellerId = "eq.$sellerId"
@@ -87,7 +100,9 @@ class OrderRemoteDataSource(
     }
 
     suspend fun confirmTicket(orderId: Int): String {
-        require(orderId > 0) { "ID pesanan tidak valid." }
+        require(orderId > 0) {
+            "ID pesanan tidak valid."
+        }
 
         return api.confirmTicket(
             ConfirmTicketRequestDto(orderId = orderId)
@@ -99,7 +114,9 @@ class OrderRemoteDataSource(
     }
 
     suspend fun validateTicket(qrCode: String): String {
-        require(qrCode.isNotBlank()) { "QR Code tidak boleh kosong." }
+        require(qrCode.isNotBlank()) {
+            "QR Code tidak boleh kosong."
+        }
 
         val request = ValidateTicketRequestDto(
             qrCode = qrCode
@@ -110,5 +127,17 @@ class OrderRemoteDataSource(
                 "Respons validasi tiket kosong."
             }
         }
+    }
+
+    suspend fun refundOrder(orderId: Int): Boolean {
+        require(orderId > 0) {
+            "ID pesanan tidak valid."
+        }
+
+        val request = mapOf(
+            "p_order_id" to orderId
+        )
+
+        return api.refundOrder(request)
     }
 }

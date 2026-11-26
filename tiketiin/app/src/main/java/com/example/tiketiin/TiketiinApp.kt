@@ -83,21 +83,12 @@ import com.example.tiketiin.ui.seller.SalesReportScreen
 import com.example.tiketiin.ui.seller.SalesViewModel
 import com.example.tiketiin.ui.simpleFactory
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 import com.example.tiketiin.data.local.DatabaseProvider
 import com.example.tiketiin.data.local.HotelLocalDataSource
 import com.example.tiketiin.data.local.OrderLocalDataSource
-import com.example.tiketiin.ui.hotel.HotelManagementScreen
-import com.example.tiketiin.ui.hotel.HotelManagementViewModel
-import com.example.tiketiin.ui.scanner.TicketScannerScreen
-import com.example.tiketiin.ui.scanner.TicketScannerViewModel
+import com.example.tiketiin.ui.checkout.PaymentInstructionScreen
 
 @Composable
 fun TiketiinApp() {
@@ -259,30 +250,7 @@ fun TiketiinApp() {
                 )
             }
         },
-        floatingActionButton = {
-            if (currentRoute == Routes.PROFILE) {
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FloatingActionButton(
-                        onClick = {
-                            navController.navigate("ticket_scanner")
-                        }
-                    ) {
-                        Text("Scan")
-                    }
 
-                    FloatingActionButton(
-                        onClick = {
-                            navController.navigate("hotel_management")
-                        }
-                    ) {
-                        Text("Hotel")
-                    }
-                }
-            }
-        }
     ) { innerPadding ->
         NavHost(
             navController = navController,
@@ -625,7 +593,11 @@ fun TiketiinApp() {
                         navController.navigate(
                             Routes.ticket(orderId)
                         )
-                    }
+                    },
+                    onRefund = { orderId ->
+                        ordersViewModel.refundOrder(orderId)
+                    },
+                    isRefunding = uiState.isRefunding
                 )
             }
 
@@ -900,14 +872,37 @@ fun TiketiinApp() {
                     onBack = {
                         navController.popBackStack()
                     },
-                    onSelectMethod =
-                        checkoutViewModel::selectPaymentMethod,
+                    onSelectCategory = checkoutViewModel::selectPaymentCategory,
+                    onSelectMethod = checkoutViewModel::selectPaymentMethod,
                     onPay = {
-                        checkoutViewModel.pay { orderId ->
+                        checkoutViewModel.preparePayment { orderId ->
                             navController.navigate(
-                                Routes.paymentSuccess(orderId)
+                                Routes.PAYMENT_INSTRUCTION
+                            )
+                        }
+                    }
+                )
+            }
+
+            composable(Routes.PAYMENT_INSTRUCTION) {
+                val uiState by checkoutViewModel.uiState
+                    .collectAsStateWithLifecycle()
+
+                val orderId = uiState.pendingOrderId ?: -1
+
+                PaymentInstructionScreen(
+                    uiState = uiState,
+                    orderId = orderId,
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                    onConfirmPayment = {
+                        checkoutViewModel.confirmPayment { paidOrderId ->
+                            navController.navigate(
+                                Routes.paymentSuccess(paidOrderId)
                             ) {
                                 popUpTo(Routes.HOME)
+                                launchSingleTop = true
                             }
                         }
                     }
@@ -1131,35 +1126,6 @@ fun TiketiinApp() {
 
                 SalesReportScreen(
                     uiState = uiState,
-                    onBack = {
-                        navController.popBackStack()
-                    }
-                )
-            }
-
-            // ------------------------- KELOLA HOTEL -------------------------
-            composable("hotel_management") {
-
-                val viewModel: HotelManagementViewModel = viewModel(
-                    factory = simpleFactory {
-                        HotelManagementViewModel(repository)
-                    }
-                )
-
-                HotelManagementScreen(
-                    viewModel = viewModel
-                )
-            }
-
-            composable("ticket_scanner") {
-                val viewModel: TicketScannerViewModel = viewModel(
-                    factory = simpleFactory {
-                        TicketScannerViewModel(repository)
-                    }
-                )
-
-                TicketScannerScreen(
-                    viewModel = viewModel,
                     onBack = {
                         navController.popBackStack()
                     }

@@ -8,6 +8,7 @@ import com.example.tiketiin.data.auth.SessionManager
 import com.example.tiketiin.data.model.User
 import com.example.tiketiin.data.remote.dto.CityOptionDto
 import com.example.tiketiin.data.repository.ProfileRepository
+import com.example.tiketiin.data.repository.PurchaseHistoryRepository
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -37,18 +38,54 @@ data class ProfileUiState(
     val cityOptions: List<CityOptionDto> = emptyList(),
     val isLoadingCities: Boolean = false,
     val cityOptionsError: String? = null,
-    val hasLoadedCities: Boolean = false
+    val hasLoadedCities: Boolean = false,
+    val discountSaved: Long = 0L,
+    val isLoadingStatistics: Boolean = false,
+    val statisticsError: String? = null,
+
 ) {
     val levelProgress: Float
-        get() = 0f
+        get() {
+            val points = user?.membershipPoints ?: 0L
 
-    val discountSaved: Long
-        get() = 0L
+            return when {
+                points >= 500L -> 1f
+                points >= 250L -> (points - 250L).toFloat() / 250L
+                points >= 30L -> (points - 30L).toFloat() / 220L
+                else -> points.toFloat() / 30L
+            }.coerceIn(0f, 1f)
+        }
+
+    val nextMembershipLevel: String
+        get() {
+            val points = user?.membershipPoints ?: 0L
+
+            return when {
+                points >= 500L -> "Platinum"
+                points >= 250L -> "Platinum"
+                points >= 30L -> "Gold"
+                else -> "Silver"
+            }
+        }
+
+    val pointsToNextLevel: Long
+        get() {
+            val points = user?.membershipPoints ?: 0L
+
+            return when {
+                points >= 500L -> 0L
+                points >= 250L -> 500L - points
+                points >= 30L -> 250L - points
+                else -> 30L - points
+            }.coerceAtLeast(0L)
+        }
 }
 
 class ProfileViewModel(
     private val authRepository: AuthRepository,
-    private val profileRepository: ProfileRepository = ProfileRepository()
+    private val profileRepository: ProfileRepository = ProfileRepository(),
+    private val purchaseHistoryRepository: PurchaseHistoryRepository =
+        PurchaseHistoryRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState())
@@ -92,12 +129,11 @@ class ProfileViewModel(
                     it.copy(
                         user = user,
                         isLoading = false,
-                        errorMessage = null,
-                        purchaseCount = 0,
-                        ticketCount = 0,
-                        spending = 0L
+                        errorMessage = null
                     )
                 }
+
+                loadPurchaseStatistics(user.id)
 
             } catch (e: CancellationException) {
                 throw e
@@ -151,6 +187,59 @@ class ProfileViewModel(
                         errorMessage = "Profil belum dapat dimuat. Coba lagi."
                     )
                 }
+            }
+        }
+    }
+
+    private suspend fun loadPurchaseStatistics(userId: String) {
+        _uiState.update {
+            it.copy(
+                isLoadingStatistics = true,
+                statisticsError = null
+            )
+        }
+
+        try {
+            val orders = purchaseHistoryRepository.getPurchaseHistory()
+
+            check(SessionManager.userId == userId) {
+                "Sesi pengguna berubah."
+            }
+
+            val purchaseCount = orders.size
+
+            val ticketCount = orders.sumOf { order ->
+                order.quantity
+            }
+
+            val spending = orders.sumOf { order ->
+                order.totalPrice
+            }
+
+            val discountSaved = orders.sumOf { order ->
+                order.membershipDiscountAmount
+            }
+
+            _uiState.update {
+                it.copy(
+                    purchaseCount = purchaseCount,
+                    ticketCount = ticketCount,
+                    spending = spending,
+                    discountSaved = discountSaved,
+                    isLoadingStatistics = false,
+                    statisticsError = null
+                )
+            }
+
+        } catch (e: CancellationException) {
+            throw e
+
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(
+                    isLoadingStatistics = false,
+                    statisticsError = "Statistik pembelian belum dapat dimuat."
+                )
             }
         }
     }

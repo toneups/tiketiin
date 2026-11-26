@@ -28,6 +28,7 @@ data class Event(
     val posterEnd: Long,
     // Isi dengan R.drawable.nama_poster kalau gambar poster sudah ditaruh di res/drawable.
     val posterRes: Int? = null,
+    val posterUrl: String? = null,
     // Sisa waktu penjualan (jam) untuk label "Berakhir ... lagi". null = bukan flash ticket.
     val flashEndsInHours: Int? = null,
     // Indikator permintaan (dipakai Hot Opportunity dan For You).
@@ -57,7 +58,8 @@ data class TicketListing(
     val status: ListingStatus = ListingStatus.AKTIF,
     val views: Int = 0,
     val saves: Int = 0,
-    val offers: Int = 0
+    val offers: Int = 0,
+    val proofPath: String? = null
 )
 
 
@@ -89,7 +91,9 @@ data class Order(
     val rating: Int = 0,
     val buyerEmail: String = "",
     val buyerPhone: String = "",
-    val ticketUsedAt: String? = null
+    val ticketUsedAt: String? = null,
+    val paymentStatus: String = "PENDING",
+    val escrowStatus: String = "PENDING",
 )
 
 data class Hotel(
@@ -118,7 +122,9 @@ data class User(
     val level: String,
     val referralCode: String,
     val isKycVerified: Boolean,
-    val recommendationNotificationsEnabled: Boolean = true
+    val recommendationNotificationsEnabled: Boolean = true,
+    val membershipPoints: Long = 0L,
+    val membershipEligibleSpending: Long = 0L
 )
 
 // Event + ringkasan listing-nya, dipakai kartu event di Beranda, Cari, For You, dll.

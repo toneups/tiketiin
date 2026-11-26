@@ -30,6 +30,8 @@ import retrofit2.http.Headers
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Query
+import com.example.tiketiin.data.remote.dto.ReviewDto
+import com.example.tiketiin.data.remote.dto.CreateReviewRequestDto
 
 interface SupabaseApiService {
 
@@ -270,14 +272,18 @@ interface SupabaseApiService {
     suspend fun getCompletedBuyerOrders(
         @Query("buyer_id")
         buyerId: String,
+
         @Query("status")
-        status: String = "eq.COMPLETED",
+        status: String = "in.(PAID,COMPLETED)",
+
         @Query("paid_at")
         paidAt: String = "not.is.null",
+
         @Query("select")
         select: String =
-            "id,buyer_id,event_id,status,paid_at"
+            "id,buyer_id,event_id,status,quantity,unit_price,original_unit_price,service_fee,total_price,membership_level,membership_discount_percent,membership_discount_amount,membership_eligible_amount,paid_at"
     ): List<PurchaseHistoryDto>
+
 
 
     // =========================
@@ -333,4 +339,29 @@ interface SupabaseApiService {
         @Query("order")
         order: String = "province.asc,name.asc"
     ): List<CityOptionDto>
+
+    // =========================
+// REVIEW / RATING
+// =========================
+
+    @GET("rest/v1/reviews")
+    suspend fun getReviews(
+        @Query("order_id")
+        orderId: String,
+        @Query("select")
+        select: String = "*"
+    ): List<ReviewDto>
+
+    @POST("rest/v1/reviews")
+    @Headers("Prefer: return=representation")
+    suspend fun createReview(
+        @Body request: CreateReviewRequestDto
+    ): List<ReviewDto>
+
+    @POST("rest/v1/rpc/refund_order")
+    suspend fun refundOrder(
+        @Body request: Map<String, Int>
+    ): Boolean
+
+
 }

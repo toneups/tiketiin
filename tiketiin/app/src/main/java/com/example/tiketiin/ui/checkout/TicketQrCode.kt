@@ -1,3 +1,4 @@
+
 package com.example.tiketiin.ui.checkout
 
 import android.graphics.Bitmap
@@ -22,7 +23,9 @@ import com.google.zxing.MultiFormatWriter
 @Composable
 fun TicketQrCode(
     qrCode: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    title: String = "QR Code Tiket",
+    description: String = " "
 ) {
     val bitmap = remember(qrCode) {
         runCatching {
@@ -63,15 +66,12 @@ fun TicketQrCode(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(
-                Color.White,
-                RoundedCornerShape(16.dp)
-            )
+            .background(Color.White, RoundedCornerShape(16.dp))
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "QR Code Tiket",
+            text = title,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold
         )
@@ -81,7 +81,7 @@ fun TicketQrCode(
         if (bitmap != null) {
             Image(
                 bitmap = bitmap.asImageBitmap(),
-                contentDescription = "QR Code Tiket",
+                contentDescription = title,
                 modifier = Modifier.size(200.dp)
             )
         } else {
@@ -102,7 +102,7 @@ fun TicketQrCode(
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = "Tunjukkan QR Code ini saat verifikasi tiket.",
+            text = description,
             fontSize = 10.sp,
             color = Color.Gray,
             textAlign = TextAlign.Center

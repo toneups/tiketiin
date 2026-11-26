@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.tiketiin.Routes
 import com.example.tiketiin.data.model.Event
 import com.example.tiketiin.data.model.EventCategory
@@ -320,6 +321,7 @@ fun BottomNavBar(
  * Poster event. Selama gambar asli belum ada, tampil gradasi warna + nama event.
  * Kalau event.posterRes diisi (R.drawable....), gambar itu yang ditampilkan.
  */
+
 @Composable
 fun PosterBox(
     event: Event,
@@ -327,34 +329,52 @@ fun PosterBox(
     titleSize: TextUnit = 14.sp,
     showTitle: Boolean = true
 ) {
-    val posterRes = event.posterRes
     Box(
         modifier = modifier.background(
-            Brush.linearGradient(listOf(Color(event.posterStart), Color(event.posterEnd)))
+            Brush.linearGradient(
+                listOf(
+                    Color(event.posterStart),
+                    Color(event.posterEnd)
+                )
+            )
         ),
         contentAlignment = Alignment.Center
     ) {
-        if (posterRes != null) {
-            Image(
-                painter = painterResource(id = posterRes),
-                contentDescription = event.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else if (showTitle) {
-            Text(
-                text = event.name,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = titleSize,
-                textAlign = TextAlign.Center,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(8.dp)
-            )
+        when {
+            !event.posterUrl.isNullOrBlank() -> {
+                AsyncImage(
+                    model = event.posterUrl,
+                    contentDescription = "Poster ${event.name}",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            event.posterRes != null -> {
+                Image(
+                    painter = painterResource(id = event.posterRes),
+                    contentDescription = event.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            showTitle -> {
+                Text(
+                    text = event.name,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = titleSize,
+                    textAlign = TextAlign.Center,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
         }
     }
 }
+
 
 @Composable
 fun CategoryTag(category: EventCategory, modifier: Modifier = Modifier) {

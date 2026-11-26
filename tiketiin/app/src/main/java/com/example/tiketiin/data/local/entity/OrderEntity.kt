@@ -30,6 +30,13 @@ data class OrderEntity(
     val total: Long,
 
     val paymentMethod: String,
+
+    @ColumnInfo(defaultValue = "'PENDING'")
+    val paymentStatus: String = "PENDING",
+
+    @ColumnInfo(defaultValue = "'PENDING'")
+    val escrowStatus: String = "PENDING",
+
     val transactionNo: String,
     val createdAt: String,
 

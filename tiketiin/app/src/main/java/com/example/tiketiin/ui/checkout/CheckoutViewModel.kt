@@ -17,8 +17,39 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
+import android.util.Log
+import com.example.tiketiin.data.model.OrderStatus
+import retrofit2.HttpException
+val PAYMENT_CATEGORIES = listOf(
+    "Transfer Bank",
+    "Kartu Kredit / Debit",
+    "E-Wallet / QRIS",
+)
 
-val PAYMENT_METHODS = listOf("Transfer Virtual Account", "Kartu Kredit / Debit", "E-wallet dan QRIS")
+val PAYMENT_OPTIONS = mapOf(
+    "Transfer Bank" to listOf(
+        "SeaBank",
+        "Bank BCA",
+        "Bank Mandiri",
+        "Bank BNI",
+        "Bank BRI",
+        "BSI",
+        "Bank Permata",
+        "CIMB Niaga",
+        "Bank lainnya"
+    ),
+    "Kartu Kredit / Debit" to listOf(
+        "Visa",
+        "Mastercard"
+    ),
+    "E-Wallet / QRIS" to listOf(
+        "DANA",
+        "ShopeePay",
+        "GoPay",
+        "OVO",
+        "QRIS"
+    )
+)
 
 data class CheckoutUiState(
     val event: Event? = null,
@@ -33,10 +64,12 @@ data class CheckoutUiState(
     val powerOfAttorney: Boolean = false,
     val formError: String? = null,
     // Pembayaran
-    val paymentMethod: String = PAYMENT_METHODS.first(),
+    val paymentCategory: String = PAYMENT_CATEGORIES.first(),
+    val paymentMethod: String = "SeaBank",
     val secondsLeft: Int = LOCK_SECONDS,
     val isPaying: Boolean = false,
-    val payError: String? = null
+    val payError: String? = null,
+    val pendingOrderId: Int? = null,
 ) {
     val ticketPrice: Long get() = (listing?.price ?: 0L) * quantity
     val serviceFee: Long get() = ticketPrice * 5 / 100
@@ -113,7 +146,6 @@ class CheckoutViewModel(
     fun updateIdNumber(value: String) = _uiState.update { it.copy(idNumber = value) }
     fun updateAddress(value: String) = _uiState.update { it.copy(address = value) }
     fun togglePowerOfAttorney() = _uiState.update { it.copy(powerOfAttorney = !it.powerOfAttorney) }
-    fun selectPaymentMethod(method: String) = _uiState.update { it.copy(paymentMethod = method) }
 
     // true kalau formulir lengkap.
     fun validateForm(): Boolean {
@@ -131,7 +163,9 @@ class CheckoutViewModel(
     }
 
 
-    fun pay(onSuccess: (Int) -> Unit) {
+
+
+    fun preparePayment(onReady: (Int) -> Unit) {
         val state = _uiState.value
         val listing = state.listing ?: return
 
@@ -146,7 +180,8 @@ class CheckoutViewModel(
             }
 
             try {
-                // 1. Membuat pesanan terlebih dahulu
+                Log.d("CheckoutPayment", "Mulai createOrder")
+
                 val order = repository.createOrder(
                     listingId = listing.id,
                     quantity = state.quantity,
@@ -156,33 +191,109 @@ class CheckoutViewModel(
                     paymentMethod = state.paymentMethod
                 )
 
-                // 2. Memproses pembayaran melalui Supabase
-                val paidOrder = repository.payOrder(
-                    orderId = order.id,
-                    paymentMethod = state.paymentMethod
+                Log.d(
+                    "CheckoutPayment",
+                    "Pesanan dibuat. ID=${order.id}"
                 )
 
-                // 3. Menghentikan timer setelah pembayaran berhasil
+                _uiState.update {
+                    it.copy(
+                        isPaying = false,
+                        pendingOrderId = order.id
+                    )
+                }
+
+                onReady(order.id)
+
+            } catch (e: Exception) {
+                Log.e(
+                    "CheckoutPayment",
+                    "Gagal membuat pesanan: ${e.message}",
+                    e
+                )
+
+                _uiState.update {
+                    it.copy(
+                        isPaying = false,
+                        payError = e.message ?: "Gagal membuat pesanan."
+                    )
+                }
+            }
+        }
+    }
+
+
+
+    fun confirmPayment(onSuccess: (Int) -> Unit) {
+        val state = _uiState.value
+        val orderId = state.pendingOrderId ?: return
+
+        if (state.isPaying) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isPaying = true,
+                    payError = null
+                )
+            }
+
+            try {
+                Log.d(
+                    "CheckoutPayment",
+                    "Memproses pembayaran. ID=$orderId"
+                )
+
+                val paidOrder = repository.payOrder(
+                    orderId,
+                    state.paymentMethod
+                )
+
                 timerJob?.cancel()
 
                 _uiState.update {
                     it.copy(isPaying = false)
                 }
 
-                // 4. Membuka halaman pembayaran berhasil
                 onSuccess(paidOrder.id)
 
-            } catch (e: CancellationException) {
-                throw e
-
             } catch (e: Exception) {
+                Log.e(
+                    "CheckoutPayment",
+                    "Pembayaran gagal: ${e.message}",
+                    e
+                )
+
                 _uiState.update {
                     it.copy(
                         isPaying = false,
-                        payError = e.message ?: "Pembayaran gagal"
+                        payError = e.message ?: "Pembayaran gagal."
                     )
                 }
             }
+        }
+    }
+
+
+    fun selectPaymentCategory(category: String) {
+        val defaultMethod = PAYMENT_OPTIONS[category]?.firstOrNull()
+            ?: category
+
+        _uiState.update {
+            it.copy(
+                paymentCategory = category,
+                paymentMethod = defaultMethod,
+                payError = null
+            )
+        }
+    }
+
+    fun selectPaymentMethod(method: String) {
+        _uiState.update {
+            it.copy(
+                paymentMethod = method,
+                payError = null
+            )
         }
     }
 }

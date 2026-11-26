@@ -126,4 +126,22 @@ object DatabaseMigrations {
         }
     }
 
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+            ALTER TABLE cached_orders
+            ADD COLUMN paymentStatus TEXT NOT NULL DEFAULT 'PENDING'
+            """.trimIndent()
+            )
+
+            db.execSQL(
+                """
+            ALTER TABLE cached_orders
+            ADD COLUMN escrowStatus TEXT NOT NULL DEFAULT 'PENDING'
+            """.trimIndent()
+            )
+        }
+    }
+
 }

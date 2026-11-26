@@ -29,11 +29,9 @@ import com.example.tiketiin.data.mapper.toOrderModelsFromLocal
 import com.example.tiketiin.data.mapper.toEntity
 import com.example.tiketiin.data.remote.dto.CreateHotelRequestDto
 import com.example.tiketiin.data.remote.dto.UpdateHotelRequestDto
+import com.example.tiketiin.data.auth.SessionManager
+import com.example.tiketiin.data.remote.ReviewRemoteDataSource
 
-/**
- * Satu-satunya pintu data untuk semua ViewModel (pola sama dengan StudentRepository).
- * Semua fungsi dibuat suspend supaya nanti bisa langsung diganti panggilan jaringan (Supabase).
- */
 interface TiketiinRepository {
     // Akun
     suspend fun getUser(): User
@@ -80,6 +78,9 @@ interface TiketiinRepository {
         orderId: Int,
         paymentMethod: String
     ): Order
+
+    suspend fun refundOrder(orderId: Int): Order
+
     suspend fun confirmTicket(orderId: Int): Order
     suspend fun validateTicket(qrCode: String): String
     suspend fun getOrder(orderId: Int): Order?
@@ -104,7 +105,6 @@ interface TiketiinRepository {
     ): Hotel
 
     suspend fun deleteHotel(hotelId: Int)
-
 }
 
 class DefaultTiketiinRepository(
@@ -112,6 +112,8 @@ class DefaultTiketiinRepository(
     private val hotelRemoteDataSource: HotelRemoteDataSource = HotelRemoteDataSource(),
     private val eventRemoteDataSource: EventRemoteDataSource = EventRemoteDataSource(),
     private val orderRemoteDataSource: OrderRemoteDataSource = OrderRemoteDataSource(),
+    private val reviewRemoteDataSource: ReviewRemoteDataSource =
+        ReviewRemoteDataSource(),
     private val hotelLocalDataSource: HotelLocalDataSource? = null,
     private val orderLocalDataSource: OrderLocalDataSource? = null
 ) : TiketiinRepository {
@@ -328,6 +330,25 @@ class DefaultTiketiinRepository(
         }
     }
 
+    override suspend fun refundOrder(orderId: Int): Order {
+        return AuthenticatedRequest.execute {
+            val result = orderRemoteDataSource.refundOrder(orderId)
+
+            check(result) {
+                "Pengembalian dana gagal diproses."
+            }
+
+            val orderDto = orderRemoteDataSource.getOrderById(orderId)
+                ?: error("Refund berhasil, tetapi detail pesanan gagal diambil.")
+
+            val order = orderDto.toModel()
+
+            orderLocalDataSource?.saveOrder(order.toEntity())
+
+            order
+        }
+    }
+
     override suspend fun confirmTicket(orderId: Int): Order {
         return AuthenticatedRequest.execute {
             val result = orderRemoteDataSource.confirmTicket(orderId)
@@ -360,19 +381,30 @@ class DefaultTiketiinRepository(
     }
 
 
+
     override suspend fun getMyOrders(): List<Order> {
         val local = orderLocalDataSource
 
+        // Ambil UUID asli dari pengguna yang sedang login.
+        val userId = requireNotNull(SessionManager.userId) {
+            "Sesi login tidak ditemukan. Silakan login kembali."
+        }
+
         return try {
             val remoteOrders = AuthenticatedRequest.execute {
-                orderRemoteDataSource
-                    .getBuyerOrders(me)
-                    .map { it.toModel() }
+                orderRemoteDataSource.getBuyerOrders(userId).map { dto ->
+                    val review = reviewRemoteDataSource.getReviewByOrderId(dto.id)
+
+                    dto.toModel().copy(
+                        rating = review?.rating ?: 0
+                    )
+                }
             }
 
+            // Simpan hasil terbaru ke cache berdasarkan UUID pengguna.
             if (local != null) {
                 local.replaceBuyerOrders(
-                    buyerId = me,
+                    buyerId = userId,
                     orders = remoteOrders.map { it.toEntity() }
                 )
             }
@@ -385,7 +417,8 @@ class DefaultTiketiinRepository(
         } catch (remoteError: Exception) {
             if (local == null) throw remoteError
 
-            val cachedOrders = local.getBuyerOrders(me)
+            // Ambil cache milik pengguna yang sedang login.
+            val cachedOrders = local.getBuyerOrders(userId)
 
             if (cachedOrders.isEmpty()) {
                 throw remoteError
@@ -394,22 +427,27 @@ class DefaultTiketiinRepository(
             cachedOrders.toOrderModelsFromLocal()
         }
     }
-
 
 
     override suspend fun getStoreOrders(): List<Order> {
         val local = orderLocalDataSource
 
+        // Ambil UUID asli dari pengguna yang sedang login.
+        val userId = requireNotNull(SessionManager.userId) {
+            "Sesi login tidak ditemukan. Silakan login kembali."
+        }
+
         return try {
             val remoteOrders = AuthenticatedRequest.execute {
                 orderRemoteDataSource
-                    .getSellerOrders(me)
+                    .getSellerOrders(userId)
                     .map { it.toModel() }
             }
 
+            // Simpan hasil terbaru ke cache berdasarkan UUID pengguna.
             if (local != null) {
                 local.replaceSellerOrders(
-                    sellerId = me,
+                    sellerId = userId,
                     orders = remoteOrders.map { it.toEntity() }
                 )
             }
@@ -422,7 +460,8 @@ class DefaultTiketiinRepository(
         } catch (remoteError: Exception) {
             if (local == null) throw remoteError
 
-            val cachedOrders = local.getSellerOrders(me)
+            // Ambil cache milik pengguna yang sedang login.
+            val cachedOrders = local.getSellerOrders(userId)
 
             if (cachedOrders.isEmpty()) {
                 throw remoteError
@@ -431,7 +470,6 @@ class DefaultTiketiinRepository(
             cachedOrders.toOrderModelsFromLocal()
         }
     }
-
 
     override suspend fun updateOrderStatus(orderId: Int, status: OrderStatus) {
         val index = source.orders.indexOfFirst { it.id == orderId }
@@ -440,13 +478,47 @@ class DefaultTiketiinRepository(
         }
     }
 
+
     override suspend fun rateOrder(orderId: Int, rating: Int) {
-        val index = source.orders.indexOfFirst { it.id == orderId }
-        if (index >= 0) {
-            source.orders[index] = source.orders[index].copy(rating = rating)
+        require(orderId > 0) {
+            "ID pesanan tidak valid."
+        }
+
+        require(rating in 1..5) {
+            "Rating harus antara 1 sampai 5."
+        }
+
+        val buyerId = requireNotNull(SessionManager.userId) {
+            "Sesi login tidak ditemukan. Silakan login kembali."
+        }
+
+        AuthenticatedRequest.execute {
+            // Ambil data pesanan asli dari Supabase.
+            val order = requireNotNull(
+                orderRemoteDataSource.getOrderById(orderId)
+            ) {
+                "Pesanan tidak ditemukan."
+            }
+
+            // Pastikan pesanan milik pembeli yang sedang login.
+            check(order.buyerId == buyerId) {
+                "Kamu tidak memiliki akses untuk menilai pesanan ini."
+            }
+
+            // Rating hanya boleh diberikan setelah pesanan selesai.
+            check(order.status.equals("COMPLETED", ignoreCase = true)) {
+                "Pesanan harus selesai sebelum dapat dinilai."
+            }
+
+            // Simpan rating ke Supabase.
+            reviewRemoteDataSource.createReview(
+                orderId = order.id,
+                buyerId = buyerId,
+                sellerId = order.sellerId,
+                rating = rating
+            )
         }
     }
-
 
     override suspend fun getHotels(eventId: Int): List<Hotel> {
         val localDataSource = hotelLocalDataSource
@@ -559,4 +631,5 @@ class DefaultTiketiinRepository(
             hotelLocalDataSource?.clearAllHotels()
         }
     }
+
 }

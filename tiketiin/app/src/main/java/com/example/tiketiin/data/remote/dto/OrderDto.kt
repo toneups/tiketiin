@@ -6,9 +6,10 @@ import com.google.gson.annotations.SerializedName
 data class OrderDto(
     val id: Int,
 
-    val payments: List<PaymentDto>? = null,
-
     val listing: OrderListingDto? = null,
+
+    @SerializedName("payments")
+    val payments: PaymentDto?,
 
     @SerializedName("order_code")
     val orderCode: String,
