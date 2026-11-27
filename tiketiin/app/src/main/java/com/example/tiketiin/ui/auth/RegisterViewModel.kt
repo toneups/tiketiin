@@ -1,6 +1,7 @@
 
 package com.example.tiketiin.ui.auth
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.tiketiin.data.auth.AuthRepository
@@ -75,12 +76,22 @@ class RegisterViewModel(
                 throw e
 
             } catch (e: HttpException) {
-                val message = when (e.code()) {
-                    400, 422 ->
+                val body = e.response()?.errorBody()?.string().orEmpty()
+                Log.e("Register", "HTTP ${e.code()}: $body")
+
+                val message = when {
+                    body.contains("user_already_exists") ||
+                            body.contains("already registered", ignoreCase = true) ->
+                        "Email ini sudah terdaftar. Silakan masuk."
+
+                    body.contains("weak_password") ->
+                        "Kata sandi terlalu lemah. Gunakan kombinasi lain."
+
+                    e.code() == 400 || e.code() == 422 ->
                         "Pendaftaran ditolak. Periksa email, kata sandi, " +
                                 "dan kode referral jika diisi."
 
-                    429 ->
+                    e.code() == 429 ->
                         "Terlalu banyak percobaan. Coba lagi nanti."
 
                     else ->
@@ -88,12 +99,8 @@ class RegisterViewModel(
                 }
 
                 _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = message
-                    )
+                    it.copy(isLoading = false, errorMessage = message)
                 }
-
             } catch (e: IOException) {
                 _uiState.update {
                     it.copy(
