@@ -137,8 +137,7 @@ class DefaultTiketiinRepository(
     private val hotelRemoteDataSource: HotelRemoteDataSource = HotelRemoteDataSource(),
     private val eventRemoteDataSource: EventRemoteDataSource = EventRemoteDataSource(),
     private val orderRemoteDataSource: OrderRemoteDataSource = OrderRemoteDataSource(),
-    private val reviewRemoteDataSource: ReviewRemoteDataSource =
-        ReviewRemoteDataSource(),
+    private val reviewRemoteDataSource: ReviewRemoteDataSource = ReviewRemoteDataSource(),
     private val hotelLocalDataSource: HotelLocalDataSource? = null,
     private val orderLocalDataSource: OrderLocalDataSource? = null
 ) : TiketiinRepository {
@@ -876,7 +875,6 @@ class DefaultTiketiinRepository(
             ?.toSummary()
     }
 
-
     override suspend fun getAllHotels(): List<Hotel> {
         return AuthenticatedRequest.execute {
             hotelRemoteDataSource
@@ -884,7 +882,6 @@ class DefaultTiketiinRepository(
                 .toHotelModels()
         }
     }
-
 
     override suspend fun createHotel(
         request: CreateHotelRequestDto
@@ -925,7 +922,6 @@ class DefaultTiketiinRepository(
             hotelLocalDataSource?.clearAllHotels()
         }
     }
-
 }
 
 class VenueCoordinatesRequired : Exception(

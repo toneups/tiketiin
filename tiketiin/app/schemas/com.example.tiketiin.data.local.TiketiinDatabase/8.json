@@ -141,90 +141,6 @@
         }
       },
       {
-        "tableName": "cached_listings",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `eventId` INTEGER NOT NULL, `sellerId` TEXT NOT NULL, `seatCategory` TEXT NOT NULL, `seatRow` TEXT NOT NULL, `faceValue` INTEGER NOT NULL, `price` INTEGER NOT NULL, `quantity` INTEGER NOT NULL, `status` TEXT NOT NULL, `views` INTEGER NOT NULL, `saves` INTEGER NOT NULL, `offers` INTEGER NOT NULL, PRIMARY KEY(`id`))",
-        "fields": [
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "eventId",
-            "columnName": "eventId",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "sellerId",
-            "columnName": "sellerId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "seatCategory",
-            "columnName": "seatCategory",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "seatRow",
-            "columnName": "seatRow",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "faceValue",
-            "columnName": "faceValue",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "price",
-            "columnName": "price",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "quantity",
-            "columnName": "quantity",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "status",
-            "columnName": "status",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "views",
-            "columnName": "views",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "saves",
-            "columnName": "saves",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "offers",
-            "columnName": "offers",
-            "affinity": "INTEGER",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "id"
-          ]
-        }
-      },
-      {
         "tableName": "cached_hotels",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `eventId` INTEGER NOT NULL, `name` TEXT NOT NULL, `area` TEXT NOT NULL, `address` TEXT NOT NULL, `city` TEXT NOT NULL, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL, `pricePerNight` INTEGER NOT NULL, `rating` REAL NOT NULL, `availableRooms` INTEGER NOT NULL, `colorStart` INTEGER NOT NULL, `colorEnd` INTEGER NOT NULL, `imageUrl` TEXT, `bookingUrl` TEXT, `cachedAt` INTEGER NOT NULL, PRIMARY KEY(`id`, `eventId`))",
         "fields": [
@@ -472,6 +388,90 @@
           {
             "fieldPath": "cachedAt",
             "columnName": "cachedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "cached_listings",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `eventId` INTEGER NOT NULL, `sellerId` TEXT NOT NULL, `seatCategory` TEXT NOT NULL, `seatRow` TEXT NOT NULL, `faceValue` INTEGER NOT NULL, `price` INTEGER NOT NULL, `quantity` INTEGER NOT NULL, `status` TEXT NOT NULL, `views` INTEGER NOT NULL, `saves` INTEGER NOT NULL, `offers` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventId",
+            "columnName": "eventId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sellerId",
+            "columnName": "sellerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seatCategory",
+            "columnName": "seatCategory",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seatRow",
+            "columnName": "seatRow",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "faceValue",
+            "columnName": "faceValue",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "price",
+            "columnName": "price",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quantity",
+            "columnName": "quantity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "views",
+            "columnName": "views",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "saves",
+            "columnName": "saves",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "offers",
+            "columnName": "offers",
             "affinity": "INTEGER",
             "notNull": true
           }

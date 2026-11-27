@@ -56,7 +56,6 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.draw.rotate
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import coil.compose.AsyncImage
 import androidx.compose.ui.res.vectorResource
 import com.example.tiketiin.R
 
@@ -343,6 +342,10 @@ fun PosterBox(
     titleSize: TextUnit = 14.sp,
     showTitle: Boolean = true
 ) {
+    val posterRes = event.posterRes
+    val posterUrl = event.posterUrl?.trim()?.takeIf { it.isNotEmpty() }
+    val posterLoaded = remember(posterUrl) { mutableStateOf(false) }
+
     Box(
         modifier = modifier.background(
             Brush.linearGradient(
@@ -354,35 +357,38 @@ fun PosterBox(
         ),
         contentAlignment = Alignment.Center
     ) {
+        // Judul sebagai placeholder selama gambar belum ada / belum termuat
+        if (showTitle && posterRes == null && !posterLoaded.value) {
+            Text(
+                text = event.name,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = titleSize,
+                textAlign = TextAlign.Center,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
+
         when {
-            !event.posterUrl.isNullOrBlank() -> {
+            posterUrl != null -> {
                 AsyncImage(
-                    model = event.posterUrl,
+                    model = posterUrl,
                     contentDescription = "Poster ${event.name}",
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.matchParentSize(),
+                    onSuccess = { posterLoaded.value = true },
+                    onError = { posterLoaded.value = false }
                 )
             }
 
-            event.posterRes != null -> {
+            posterRes != null -> {
                 Image(
-                    painter = painterResource(id = event.posterRes),
+                    painter = painterResource(id = posterRes),
                     contentDescription = event.name,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-
-            showTitle -> {
-                Text(
-                    text = event.name,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = titleSize,
-                    textAlign = TextAlign.Center,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(8.dp)
+                    modifier = Modifier.matchParentSize()
                 )
             }
         }

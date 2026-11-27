@@ -1,14 +1,19 @@
 package com.example.tiketiin.ui.home
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,21 +21,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.tiketiin.R
 import com.example.tiketiin.data.model.*
 import com.example.tiketiin.domain.*
 import com.example.tiketiin.ui.components.*
 import com.example.tiketiin.ui.theme.*
-import androidx.compose.foundation.Image
-import androidx.compose.ui.res.painterResource
-import com.example.tiketiin.R
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Notifications
+
 private data class HomeCategory(
     val label: String,
     val iconRes: Int,
@@ -47,6 +48,7 @@ private val homeCategories = listOf(
     HomeCategory("Tempat Rekreasi", R.drawable.rekreasi, null),
     HomeCategory("Akomodasi", R.drawable.akomodasi, null)
 )
+
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
@@ -158,7 +160,6 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-
                 Box(
                     modifier = Modifier.size(44.dp),
                     contentAlignment = Alignment.Center
@@ -210,7 +211,6 @@ fun HomeScreen(
                         }
                     }
                 }
-
             }
         }
 
@@ -270,7 +270,6 @@ fun HomeScreen(
                     contentPadding = PaddingValues(horizontal = 24.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-
                     items(
                         items = uiState.flashTickets,
                         key = { it.event.id }
@@ -341,6 +340,7 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 CategoryChips(selected = uiState.selectedCategory, onSelect = onSelectCategory)
                 Spacer(modifier = Modifier.height(8.dp))
+
                 uiState.wishlistError?.let { message ->
                     Row(
                         modifier = Modifier
@@ -363,10 +363,14 @@ fun HomeScreen(
                         }
                     }
                 }
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
+
+                if (uiState.filteredPopular.isEmpty()) {
+                    EmptyBox(text = "Belum ada event di kategori ini.")
+                } else {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
                         items(
                             items = uiState.filteredPopular,
                             key = { it.event.id }
@@ -393,13 +397,12 @@ fun HomeScreen(
                                 }
                             )
                         }
-
                     }
                 }
             }
         }
     }
-
+}
 
 @Composable
 private fun PopularCard(

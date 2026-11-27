@@ -63,6 +63,7 @@ import com.example.tiketiin.ui.home.HomeViewModel
 import com.example.tiketiin.ui.notification.NotificationBadgeViewModel
 import com.example.tiketiin.ui.notification.NotificationScreen
 import com.example.tiketiin.ui.notification.NotificationViewModel
+import com.example.tiketiin.ui.offers.TicketOffersScreen
 import com.example.tiketiin.ui.orders.OrdersScreen
 import com.example.tiketiin.ui.orders.OrdersViewModel
 import com.example.tiketiin.ui.orders.TicketDetailScreen
@@ -88,7 +89,6 @@ import com.example.tiketiin.ui.seller.MyListingsViewModel
 import com.example.tiketiin.ui.seller.SalesReportScreen
 import com.example.tiketiin.ui.seller.SalesViewModel
 import com.example.tiketiin.ui.simpleFactory
-import com.example.tiketiin.ui.offers.TicketOffersScreen
 
 @Composable
 fun TiketiinApp() {
@@ -99,6 +99,7 @@ fun TiketiinApp() {
     }
 
     val scope = rememberCoroutineScope()
+
     val context = LocalContext.current.applicationContext
 
     val database = remember(context) {
@@ -128,6 +129,7 @@ fun TiketiinApp() {
     }
 
     val wishlistRepository = remember { WishlistRepository() }
+
     val eventRepository = remember(context) {
         RepositoryProvider.getEventRepository(context)
     }
@@ -174,6 +176,7 @@ fun TiketiinApp() {
             restoreState = false
         }
     }
+
     fun enterApp() {
         check(SessionManager.hasSession) {
             "Login Supabase diperlukan."
@@ -427,7 +430,6 @@ fun TiketiinApp() {
 
                 LaunchedEffect(Unit) {
                     viewModel.load()
-                    viewModel.loadWishlist()
                 }
 
                 LaunchedEffect(currentRoute) {
@@ -504,7 +506,7 @@ fun TiketiinApp() {
                 )
             }
 
-            // ------------------------- FLASS TIKET -------------------------
+            // ------------------------- FLASH TIKET -------------------------
 
             composable(Routes.FLASH_TICKETS) {
                 val viewModel: HomeViewModel = viewModel(
@@ -530,6 +532,7 @@ fun TiketiinApp() {
                     onRetry = viewModel::load
                 )
             }
+
             // ------------------------- TAB: JUAL TIKET (Fungsi 2) -------------------------
 
             composable(Routes.SELL) {
@@ -599,6 +602,7 @@ fun TiketiinApp() {
                     onRetry = viewModel::load
                 )
             }
+
             composable("ticket_offers") {
                 TicketOffersScreen(
                     onBack = {
@@ -868,12 +872,17 @@ fun TiketiinApp() {
                     onToggleSaved = viewModel::toggleSaved,
                     onSubmitOffer = viewModel::submitOffer,
                     onResetOfferResult = viewModel::resetOfferResult,
-                    onViewOffers = { navController.navigate("ticket_offers") { launchSingleTop = true } },
-                    onBuy = { id, listingId, quantity -> startCheckout(id, listingId, quantity)
-
+                    onViewOffers = {
+                        navController.navigate("ticket_offers") {
+                            launchSingleTop = true
+                        }
+                    },
+                    onBuy = { id, listingId, quantity ->
+                        startCheckout(id, listingId, quantity)
                     }
                 )
             }
+
             composable(Routes.ORDER_FORM) {
                 val uiState by checkoutViewModel.uiState
                     .collectAsStateWithLifecycle()

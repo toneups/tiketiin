@@ -1,16 +1,16 @@
 package com.example.tiketiin.data.remote
 
 import com.example.tiketiin.data.remote.api.SupabaseApiService
-import com.example.tiketiin.data.remote.dto.EventDto
-import com.example.tiketiin.data.remote.dto.VenueDto
-import com.example.tiketiin.data.remote.dto.CreateEventDto
-import com.example.tiketiin.data.remote.dto.UpdateEventDto
-import com.example.tiketiin.data.remote.dto.CreateVenueDto
 import com.example.tiketiin.data.remote.dto.ActiveListingDto
-import com.example.tiketiin.data.remote.dto.EventViewDto
+import com.example.tiketiin.data.remote.dto.CreateEventDto
+import com.example.tiketiin.data.remote.dto.CreateVenueDto
 import com.example.tiketiin.data.remote.dto.EventDemandStatsDto
+import com.example.tiketiin.data.remote.dto.EventDto
+import com.example.tiketiin.data.remote.dto.EventViewDto
 import com.example.tiketiin.data.remote.dto.SellerSalesOrderDto
 import com.example.tiketiin.data.remote.dto.TicketListingDto
+import com.example.tiketiin.data.remote.dto.UpdateEventDto
+import com.example.tiketiin.data.remote.dto.VenueDto
 
 class EventRemoteDataSource(
     private val api: SupabaseApiService = RetrofitClient.api
@@ -60,6 +60,18 @@ class EventRemoteDataSource(
         check(updated.size == 1) { "Event tidak bisa diubah." }
     }
 
+    suspend fun getActiveTicketListings(
+        eventId: Int
+    ): List<TicketListingDto> {
+        require(eventId > 0) {
+            "ID event tidak valid."
+        }
+
+        return api.getActiveTicketListings(
+            eventId = "eq.$eventId"
+        )
+    }
+
     suspend fun deleteEvent(eventId: Int) {
         val deleted = api.deleteEvent("eq.$eventId")
         check(deleted.size == 1) {
@@ -94,17 +106,4 @@ class EventRemoteDataSource(
 
         return orders
     }
-
-    suspend fun getActiveTicketListings(
-        eventId: Int
-    ): List<TicketListingDto> {
-        require(eventId > 0) {
-            "ID event tidak valid."
-        }
-
-        return api.getActiveTicketListings(
-            eventId = "eq.$eventId"
-        )
-    }
-
 }

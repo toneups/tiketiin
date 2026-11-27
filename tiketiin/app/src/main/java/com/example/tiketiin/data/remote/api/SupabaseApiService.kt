@@ -111,27 +111,6 @@ interface SupabaseApiService {
         quantity: String = "gt.0"
     ): List<EventDto>
 
-
-    // =========================
-    // PROFILE
-    // =========================
-
-    @GET("rest/v1/profiles")
-    suspend fun getProfile(
-        @Query("id")
-        id: String,
-        @Query("select")
-        select: String = "*"
-    ): List<ProfileDto>
-
-    @GET("rest/v1/profiles")
-    suspend fun getAccessibleProfiles(
-        @Query("select")
-        select: String = "*"
-    ): List<ProfileDto>
-
-    // ===== Hot Opportunity, kelola event, dan dashboard seller =====
-
     @POST("rest/v1/events")
     suspend fun createEvent(@Body event: CreateEventDto)
 
@@ -181,13 +160,30 @@ interface SupabaseApiService {
         @Query("offset") offset: Int = 0
     ): List<SellerSalesOrderDto>
 
-    @retrofit2.http.POST("storage/v1/object/event-posters/{path}")
+    @POST("storage/v1/object/event-posters/{path}")
     suspend fun uploadEventPoster(
-        @retrofit2.http.Path("path", encoded = true) path: String,
-        @retrofit2.http.Body image: okhttp3.RequestBody
+        @Path("path", encoded = true) path: String,
+        @Body image: RequestBody
     ): Unit
 
-    // ===== Profil dan preferensi (auth-for-you) =====
+
+    // =========================
+    // PROFILE
+    // =========================
+
+    @GET("rest/v1/profiles")
+    suspend fun getProfile(
+        @Query("id")
+        id: String,
+        @Query("select")
+        select: String = "*"
+    ): List<ProfileDto>
+
+    @GET("rest/v1/profiles")
+    suspend fun getAccessibleProfiles(
+        @Query("select")
+        select: String = "*"
+    ): List<ProfileDto>
 
     @PATCH("rest/v1/profiles")
     @Headers("Prefer: return=representation")
@@ -369,7 +365,6 @@ interface SupabaseApiService {
     ): List<PurchaseHistoryDto>
 
 
-
     // =========================
     // NOTIFICATION
     // =========================
@@ -426,7 +421,55 @@ interface SupabaseApiService {
 
 
     // =========================
-    // FAIR PRICE (Raisya)
+    // REVIEW / RATING
+    // =========================
+
+    @GET("rest/v1/reviews")
+    suspend fun getReviews(
+        @Query("order_id")
+        orderId: String,
+        @Query("select")
+        select: String = "*"
+    ): List<ReviewDto>
+
+    @POST("rest/v1/reviews")
+    @Headers("Prefer: return=representation")
+    suspend fun createReview(
+        @Body request: CreateReviewRequestDto
+    ): List<ReviewDto>
+
+    @POST("rest/v1/rpc/refund_order")
+    suspend fun refundOrder(
+        @Body request: Map<String, Int>
+    ): Boolean
+
+
+    // =========================
+    // PENAWARAN HARGA TIKET
+    // =========================
+
+    @POST("rest/v1/rpc/submit_ticket_offer")
+    suspend fun submitTicketOffer(
+        @Body request: Map<String, Long>
+    ): Long
+
+    @GET("rest/v1/ticket_offers")
+    suspend fun getBuyerTicketOffers(
+        @Query("buyer_id")
+        buyerId: String,
+
+        @Query("select")
+        select: String =
+            "id,listing_id,price_per_ticket,quantity,status,created_at," +
+                    "listing:ticket_listings(seat_category,event:events(name))",
+
+        @Query("order")
+        order: String = "created_at.desc,id.desc"
+    ): List<TicketOfferDto>
+
+
+    // =========================
+    // FAIR PRICE DAN LISTING
     // =========================
 
     @POST("rest/v1/rpc/get_price_history")
@@ -470,49 +513,5 @@ interface SupabaseApiService {
         @Header("Content-Type") contentType: String,
         @Header("x-upsert") upsert: String = "true",
         @Body body: RequestBody
-    ): retrofit2.Response<okhttp3.ResponseBody>
-
-
-    // =========================
-    // REVIEW / RATING
-    // =========================
-
-    @GET("rest/v1/reviews")
-    suspend fun getReviews(
-        @Query("order_id")
-        orderId: String,
-        @Query("select")
-        select: String = "*"
-    ): List<ReviewDto>
-
-    @POST("rest/v1/reviews")
-    @Headers("Prefer: return=representation")
-    suspend fun createReview(
-        @Body request: CreateReviewRequestDto
-    ): List<ReviewDto>
-
-    @POST("rest/v1/rpc/refund_order")
-    suspend fun refundOrder(
-        @Body request: Map<String, Int>
-    ): Boolean
-
-    // PENAWARAN HARGA TIKET
-    @POST("rest/v1/rpc/submit_ticket_offer")
-    suspend fun submitTicketOffer(
-        @Body request: Map<String, Long>
-    ): Long
-
-    @GET("rest/v1/ticket_offers")
-    suspend fun getBuyerTicketOffers(
-        @Query("buyer_id")
-        buyerId: String,
-
-        @Query("select")
-        select: String =
-            "id,listing_id,price_per_ticket,quantity,status,created_at," +
-                    "listing:ticket_listings(seat_category,event:events(name))",
-
-        @Query("order")
-        order: String = "created_at.desc,id.desc"
-    ): List<TicketOfferDto>
+    ): Response<okhttp3.ResponseBody>
 }

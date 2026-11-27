@@ -36,7 +36,8 @@ object DatabaseMigrations {
 
         override fun migrate(db: SupportSQLiteDatabase) {
 
-            db.execSQL("""
+            db.execSQL(
+                """
                 CREATE TABLE IF NOT EXISTS cached_hotels (
                     id INTEGER NOT NULL,
                     eventId INTEGER NOT NULL,
@@ -54,9 +55,11 @@ object DatabaseMigrations {
                     cachedAt INTEGER NOT NULL,
                     PRIMARY KEY(id, eventId)
                 )
-            """.trimIndent())
+            """.trimIndent()
+            )
 
-            db.execSQL("""
+            db.execSQL(
+                """
                 CREATE TABLE IF NOT EXISTS cached_orders (
                     id INTEGER NOT NULL,
                     eventId INTEGER NOT NULL,
@@ -78,7 +81,8 @@ object DatabaseMigrations {
                     cachedAt INTEGER NOT NULL,
                     PRIMARY KEY(id)
                 )
-            """.trimIndent())
+            """.trimIndent()
+            )
         }
     }
 
@@ -99,7 +103,6 @@ object DatabaseMigrations {
             )
         }
     }
-
 
     val MIGRATION_5_6 = object : Migration(5, 6) {
         override fun migrate(db: SupportSQLiteDatabase) {
@@ -144,7 +147,7 @@ object DatabaseMigrations {
         }
     }
 
-    // Tabel cache listing tiket (Raisya)
+
     val MIGRATION_7_8 = object : Migration(7, 8) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
@@ -165,5 +168,4 @@ object DatabaseMigrations {
             )
         }
     }
-
 }
