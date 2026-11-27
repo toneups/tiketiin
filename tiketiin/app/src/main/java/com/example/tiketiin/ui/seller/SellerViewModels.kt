@@ -93,9 +93,9 @@ class ManageEventsViewModel(
             val all = repository.getEventSummaries().map { it.event }
             val duplicate = date != null && all.any {
                 it.id != (editing?.id ?: -1) &&
-                    it.name.equals(name.trim(), ignoreCase = true) &&
-                    it.venue.equals(venue.trim(), ignoreCase = true) &&
-                    it.date == date
+                        it.name.equals(name.trim(), ignoreCase = true) &&
+                        it.venue.equals(venue.trim(), ignoreCase = true) &&
+                        it.date == date
             }
             val error = when {
                 name.isBlank() -> "Nama event wajib diisi."
@@ -149,7 +149,7 @@ class ManageEventsViewModel(
                     )
                 }
                 return@launch
-            }catch (e: Exception) {
+            } catch (e: Exception) {
                 val message = when (e) {
                     is IllegalArgumentException, is IllegalStateException ->
                         e.message ?: "Periksa kembali isian event."
@@ -252,7 +252,7 @@ class MyListingsViewModel(
             val result = FairPriceCalculator.check(
                 listing.faceValue,
                 price,
-                repository.getPriceHistory(listing.eventId)
+                repository.getPriceHistory(listing.eventId, listing.seatCategory)
             )
             val error = when {
                 price < 10_000 -> "Harga belum benar."
@@ -264,7 +264,16 @@ class MyListingsViewModel(
                 _uiState.update { it.copy(priceError = error) }
                 return@launch
             }
-            repository.updateListingPrice(listing.id, price)
+            try {
+                repository.updateListingPrice(listing.id, price)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(priceError = "Gagal menyimpan harga. Periksa koneksi atau login, lalu coba lagi.")
+                }
+                return@launch
+            }
             _uiState.update { it.copy(priceError = null) }
             load()
             onSaved()
@@ -273,7 +282,16 @@ class MyListingsViewModel(
 
     fun delete(listingId: Int) {
         viewModelScope.launch {
-            repository.deleteListing(listingId)
+            try {
+                repository.deleteListing(listingId)
+                _uiState.update { it.copy(priceError = null) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(priceError = "Gagal menonaktifkan listing. Periksa koneksi atau login, lalu coba lagi.")
+                }
+            }
             load()
         }
     }

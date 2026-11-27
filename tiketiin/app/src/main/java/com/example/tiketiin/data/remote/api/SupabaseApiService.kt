@@ -7,6 +7,8 @@ import retrofit2.http.Query
 import retrofit2.http.PATCH
 import retrofit2.http.Body
 import retrofit2.http.Headers
+import retrofit2.http.Header
+import retrofit2.http.Path
 import com.example.tiketiin.data.remote.dto.ProfileDto
 import com.example.tiketiin.data.remote.dto.CreateEventDto
 import retrofit2.http.POST
@@ -26,6 +28,13 @@ import com.example.tiketiin.data.remote.dto.PurchaseHistoryDto
 import com.example.tiketiin.data.remote.dto.NotificationDto
 import com.example.tiketiin.data.remote.dto.NotificationReadUpdate
 import com.example.tiketiin.data.remote.dto.CityOptionDto
+import com.example.tiketiin.data.remote.dto.PriceHistoryDto
+import com.example.tiketiin.data.remote.dto.PriceHistoryRequest
+import com.example.tiketiin.data.remote.dto.CreateListingRequest
+import com.example.tiketiin.data.remote.dto.ListingRowDto
+import com.example.tiketiin.data.remote.dto.ListingDto
+import com.example.tiketiin.data.remote.dto.UpdateListingRequest
+import okhttp3.RequestBody
 
 interface SupabaseApiService {
 
@@ -286,4 +295,48 @@ interface SupabaseApiService {
         @Query("order")
         order: String = "province.asc,name.asc"
     ): List<CityOptionDto>
+
+    // ===== Fair Price (Raisya) =====
+    @POST("rest/v1/rpc/get_price_history")
+    suspend fun getPriceHistory(
+        @Body body: PriceHistoryRequest
+    ): List<PriceHistoryDto>
+
+    @POST("rest/v1/ticket_listings")
+    suspend fun createListing(
+        @Header("Prefer") prefer: String = "return=representation",
+        @Body body: CreateListingRequest
+    ): List<ListingRowDto>
+
+    @GET("rest/v1/ticket_listings")
+    suspend fun getListingById(
+        @Query("id") id: String,
+        @Query("select") select: String = "*"
+    ): List<ListingDto>
+
+    // Listing milik seller yang sedang login (RLS "Read own listings")
+    @GET("rest/v1/ticket_listings")
+    suspend fun getMyListings(
+        @Query("seller_id") sellerId: String,
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "created_at.desc"
+    ): List<ListingDto>
+
+    // Ubah harga atau status satu listing
+    @PATCH("rest/v1/ticket_listings")
+    suspend fun updateListing(
+        @Query("id") id: String,
+        @Header("Prefer") prefer: String = "return=minimal",
+        @Body body: UpdateListingRequest
+    )
+
+    // Upload bukti tiket ke bucket private ticket-proofs
+    // path wajib diawali UUID akun: "<userId>/<namaFile>"
+    @POST("storage/v1/object/ticket-proofs/{path}")
+    suspend fun uploadTicketProof(
+        @Path("path", encoded = true) path: String,
+        @Header("Content-Type") contentType: String,
+        @Header("x-upsert") upsert: String = "true",
+        @Body body: RequestBody
+    ): retrofit2.Response<okhttp3.ResponseBody>
 }

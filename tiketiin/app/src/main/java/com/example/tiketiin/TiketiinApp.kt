@@ -1,4 +1,3 @@
-
 package com.example.tiketiin
 
 import android.widget.Toast
@@ -92,8 +91,13 @@ fun TiketiinApp() {
         AuthRepository()
     }
 
+    // Sumber data sementara masih dummy. Nanti cukup ganti di baris ini.
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val repository = remember {
-        DefaultTiketiinRepository(DummyDataSource)
+        DefaultTiketiinRepository(
+            DummyDataSource,
+            com.example.tiketiin.data.local.DatabaseProvider.getDatabase(appContext).listingDao()
+        )
     }
 
     val context = LocalContext.current.applicationContext
@@ -941,6 +945,7 @@ fun TiketiinApp() {
                         sellViewModel::updateFaceValue,
                     onPriceChange = sellViewModel::updatePrice,
                     onToggleProof = sellViewModel::toggleProof,
+                    onPickProof = { bytes, mime, name -> sellViewModel.uploadProof(bytes, mime, name) },
                     onSubmit = {
                         sellViewModel.submitForm {
                             navController.navigate(
