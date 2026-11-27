@@ -4,97 +4,137 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.tiketiin.data.model.EventSummary
 import com.example.tiketiin.data.model.TicketListing
+import com.example.tiketiin.data.repository.EventCatalogRepository
 import com.example.tiketiin.data.repository.TiketiinRepository
+import com.example.tiketiin.data.repository.WishlistRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CancellationException
+import java.io.IOException
 
 data class DetailUiState(
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
+    val actionError: String? = null,
     val summary: EventSummary? = null,
+    val listings: List<TicketListing> = emptyList(),
     val listing: TicketListing? = null,
     val quantity: Int = 1,
-    val selectedTab: Int = 0
+    val selectedTab: Int = 0,
+    val isSaving: Boolean = false
 ) {
-    val totalPrice: Long get() = (listing?.price ?: 0L) * quantity
+    val totalPrice: Long
+        get() = (listing?.price ?: 0L) * quantity
 }
 
 class DetailViewModel(
-    private val repository: TiketiinRepository,
-    private val remote: Boolean = false
+    private val eventRepository: EventCatalogRepository,
+    private val wishlistRepository: WishlistRepository,
+    // Dipakai untuk mencatat view event (bahan skor Hot Opportunity).
+    private val repository: TiketiinRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DetailUiState())
-    val uiState: StateFlow<DetailUiState> = _uiState.asStateFlow()
 
+    val uiState: StateFlow<DetailUiState> =
+        _uiState.asStateFlow()
+
+    private var loadJob: Job? = null
+
+    // View dicatat sekali per layar detail yang dibuka.
     private var viewRecorded = false
 
     fun load(eventId: Int) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        if (loadJob?.isActive == true) return
+
+        loadJob = viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    errorMessage = null,
+                    actionError = null,
+                    summary = null,
+                    listing = null
+                )
+            }
 
             try {
-                val summary = if (remote) {
-                    repository.getRemoteEventSummary(eventId)
-                } else {
-                    repository.getEventSummary(eventId)
+                require(eventId > 0) {
+                    "ID event tidak valid."
                 }
 
-                if (summary == null) {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            summary = null,
-                            listing = null,
-                            errorMessage = "Event tidak ditemukan."
-                        )
-                    }
-                    return@launch
-                }
+                // Ambil data terbaru dari Supabase.
+                eventRepository.refreshEvents()
 
-                val listing = if (remote) {
-                    repository.getRemoteCheapestListing(eventId)
-                } else {
-                    repository.getCheapestListing(eventId)
-                }
+                // Baca katalog yang tersinkron ke Room.
+                val summary = eventRepository
+                    .getCachedEvents()
+                    .firstOrNull { it.event.id == eventId }
+                    ?: throw NoSuchElementException(
+                        "Event tidak ditemukan."
+                    )
+
+                // Ambil bookmark dari akun yang sedang login.
+                val savedIds =
+                    wishlistRepository.getSavedEventIds()
+
+                val listings =
+                    eventRepository.getActiveTicketListings(eventId)
+
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        summary = summary,
-                        listing = listing,
-                        quantity = it.quantity.coerceIn(
-                            1,
-                            (listing?.quantity ?: 1).coerceAtLeast(1)
-                        )
+                        errorMessage = null,
+                        summary = summary.copy(
+                            isSaved = eventId in savedIds
+                        ),
+                        // Listing lengkap belum dihubungkan.
+                        listings = listings,
+                        listing = listings.firstOrNull(),
+                        quantity = 1
                     )
                 }
+
+                // Catat view setelah detail berhasil tampil. Kegagalan
+                // pencatatan tidak boleh mengganggu layar detail.
                 if (!viewRecorded) {
                     try {
-                        if (remote) {
-                            repository.recordRemoteView(eventId)
-                        } else {
-                            repository.recordView(eventId)
-                        }
+                        repository.recordRemoteView(eventId)
                         viewRecorded = true
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        android.util.Log.w("DetailViewModel", "Gagal mencatat view event", e)
+                        android.util.Log.w(
+                            "DetailViewModel",
+                            "Gagal mencatat view event",
+                            e
+                        )
                     }
                 }
+
             } catch (e: CancellationException) {
                 throw e
+
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         summary = null,
                         listing = null,
-                        errorMessage = "Detail event gagal dimuat. Coba buka kembali."
+                        errorMessage = when (e) {
+                            is IOException ->
+                                "Koneksi bermasalah. Periksa internet."
+
+                            is NoSuchElementException ->
+                                "Event tidak ditemukan."
+
+                            else ->
+                                "Gagal memuat detail event."
+                        }
                     )
                 }
             }
@@ -102,21 +142,78 @@ class DetailViewModel(
     }
 
     fun selectTab(tab: Int) {
-        _uiState.update { it.copy(selectedTab = tab) }
+        _uiState.update {
+            it.copy(selectedTab = tab.coerceIn(0, 2))
+        }
     }
 
     fun changeQuantity(delta: Int) {
-        _uiState.update {
-            val max = (it.listing?.quantity ?: 1).coerceAtLeast(1)
-            it.copy(quantity = (it.quantity + delta).coerceIn(1, max))
+        _uiState.update { state ->
+            val max = state.listing?.quantity ?: 1
+
+            state.copy(
+                quantity = (state.quantity + delta)
+                    .coerceIn(1, max.coerceAtLeast(1))
+            )
         }
     }
 
     fun toggleSaved() {
-        val eventId = _uiState.value.summary?.event?.id ?: return
+        val summary = _uiState.value.summary ?: return
+
+        if (_uiState.value.isSaving) return
+
         viewModelScope.launch {
-            repository.toggleSaved(eventId)
-            load(eventId)
+            _uiState.update {
+                it.copy(isSaving = true, actionError = null)
+            }
+
+            try {
+                val eventId = summary.event.id
+
+                if (summary.isSaved) {
+                    wishlistRepository.removeSavedEvent(eventId)
+                } else {
+                    wishlistRepository.addSavedEvent(eventId)
+                }
+
+                _uiState.update { state ->
+                    state.copy(
+                        summary = state.summary?.copy(
+                            isSaved = !summary.isSaved
+                        ),
+                        isSaving = false
+                    )
+                }
+
+            } catch (e: CancellationException) {
+                throw e
+
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        actionError =
+                            "Gagal mengubah bookmark. Periksa koneksi."
+                    )
+                }
+            }
+        }
+    }
+
+
+    fun selectListing(listingId: Int) {
+
+        val selectedListing =
+            _uiState.value.listings.firstOrNull {
+                it.id == listingId
+            } ?: return
+
+        _uiState.update {
+            it.copy(
+                listing = selectedListing,
+                quantity = 1
+            )
         }
     }
 }

@@ -88,51 +88,71 @@ object FairPriceCalculator {
 // ---------------------------------------------------------------------------
 // FUNGSI 3 - Rekomendasi Event Personalisasi (For You)
 // ---------------------------------------------------------------------------
-
 object RecommendationCalculator {
 
-    /**
-     * @param purchasedCategories kategori event yang pernah dibeli user
-     * @param savedCategories kategori event yang disimpan user
-     * @param purchasedEventIds event yang sudah dibeli (disaring dari hasil)
-     */
     fun recommend(
         candidates: List<EventSummary>,
         purchasedCategories: List<EventCategory>,
         savedCategories: List<EventCategory>,
         purchasedEventIds: Set<Int>,
         userCity: String,
-        today: LocalDate
+        today: LocalDate,
+        nearbyEventIds: Set<Int>? = null
     ): List<EventSummary> {
         val active = candidates.filter {
-            !it.event.date.isBefore(today) && it.event.id !in purchasedEventIds && it.ticketCount > 0
-        }
-        val hasHistory = purchasedCategories.isNotEmpty() || savedCategories.isNotEmpty()
-
-        // User baru: pakai event trending (paling banyak dilihat) sebagai fallback.
-        if (!hasHistory) {
-            return active.sortedByDescending { it.event.viewCount }
+            !it.event.date.isBefore(today) &&
+                    it.event.id !in purchasedEventIds &&
+                    it.ticketCount > 0
         }
 
-        return active
-            .map { it to matchScore(it.event, purchasedCategories, savedCategories, userCity) }
-            .sortedByDescending { it.second }
-            .map { it.first }
+        return active.sortedWith(
+            compareByDescending<EventSummary> {
+                matchScore(
+                    event = it.event,
+                    purchasedCategories = purchasedCategories,
+                    savedCategories = savedCategories,
+                    userCity = userCity,
+                    nearbyEventIds = nearbyEventIds
+                )
+            }
+                .thenByDescending { it.event.viewCount }
+                .thenBy { it.event.date }
+                .thenBy { it.event.id }
+        )
     }
 
     fun matchScore(
         event: Event,
         purchasedCategories: List<EventCategory>,
         savedCategories: List<EventCategory>,
-        userCity: String
+        userCity: String,
+        nearbyEventIds: Set<Int>? = null
     ): Double {
-        val bought = purchasedCategories.count { it == event.category } * 3.0
-        val saved = savedCategories.count { it == event.category } * 2.0
-        val near = if (event.city.equals(userCity, ignoreCase = true)) 2.0 else 0.0
-        val popular = event.viewCount / 1000.0
+        val bought = purchasedCategories.count {
+            it == event.category
+        } * 3.0
+
+        val saved = savedCategories.count {
+            it == event.category
+        } * 2.0
+
+        val sameCity = if (nearbyEventIds != null) {
+            event.id in nearbyEventIds
+        } else {
+            LocationMatcher.isSameCity(
+                profileCity = userCity,
+                eventCity = event.city
+            )
+        }
+
+        val near = if (sameCity) 2.0 else 0.0
+
+        val popular = event.viewCount.coerceAtLeast(0) / 1000.0
+
         return bought + saved + near + popular
     }
 }
+
 
 // ---------------------------------------------------------------------------
 // FUNGSI 4 - Rekomendasi Hotel Terdekat

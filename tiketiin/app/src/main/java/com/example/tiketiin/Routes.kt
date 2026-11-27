@@ -41,4 +41,5 @@ object Routes {
     const val MANAGE_EVENTS = "manage_events"
     const val MY_LISTINGS = "my_listings"
     const val SALES_REPORT = "sales_report"
+    const val NOTIFICATIONS = "notifications"
 }

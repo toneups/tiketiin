@@ -109,7 +109,8 @@ data class User(
     val city: String,
     val level: String,
     val referralCode: String,
-    val isKycVerified: Boolean
+    val isKycVerified: Boolean,
+    val recommendationNotificationsEnabled: Boolean = true
 )
 
 // Event + ringkasan listing-nya, dipakai kartu event di Beranda, Cari, For You, dll.
