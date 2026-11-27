@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
+import com.example.tiketiin.data.repository.ProfileRepository
 
 data class SellUiState(
     // e-KYC
@@ -53,7 +54,8 @@ data class SellUiState(
  * (dibuat di TiketiinApp supaya isian tidak hilang saat pindah langkah).
  */
 class SellViewModel(
-    private val repository: TiketiinRepository
+    private val repository: TiketiinRepository,
+    private val profileRepository: ProfileRepository = ProfileRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SellUiState())
@@ -64,20 +66,27 @@ class SellViewModel(
     fun startSelling(eventId: Int, onReady: (Boolean) -> Unit) {
         viewModelScope.launch {
             val user = repository.getUser()
+            val profile = try {
+                profileRepository.getMyProfile()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
             val today = LocalDate.now()
             val events = repository.getEventSummaries()
                 .map { it.event }
                 .filter { !it.date.isBefore(today) }
+            val verified = (profile?.isKycVerified == true) || user.isKycVerified
             _uiState.value = SellUiState(
-                isKycVerified = user.isKycVerified,
-                kycName = user.name,
+                isKycVerified = verified,
+                kycName = profile?.name.orEmpty(),
                 events = events,
                 selectedEvent = events.find { it.id == eventId }
             )
-            onReady(user.isKycVerified)
+            onReady(verified)
         }
     }
-
     // ----- e-KYC -----
     fun toggleKtp() = _uiState.update { it.copy(ktpUploaded = !it.ktpUploaded) }
     fun toggleSelfie() = _uiState.update { it.copy(selfieTaken = !it.selfieTaken) }
