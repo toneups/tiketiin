@@ -4,6 +4,7 @@ package com.example.tiketiin.data.auth
 import com.example.tiketiin.data.remote.AuthRemoteDataSource
 import com.example.tiketiin.data.remote.dto.AuthUserDto
 import com.example.tiketiin.data.remote.dto.RegisterResponse
+import com.example.tiketiin.data.repository.ProfileRepository
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -177,6 +178,7 @@ class AuthRepository(
         } finally {
             withContext(NonCancellable) {
                 SessionManager.clearSession()
+                ProfileRepository().clearCachedProfile()
             }
         }
     }

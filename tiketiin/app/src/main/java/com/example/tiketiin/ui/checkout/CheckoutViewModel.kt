@@ -93,40 +93,60 @@ class CheckoutViewModel(
 
     private val _uiState = MutableStateFlow(CheckoutUiState())
     val uiState: StateFlow<CheckoutUiState> = _uiState.asStateFlow()
-
+    private var startJob: Job? = null
     private var timerJob: Job? = null
 
     // Dipanggil saat tombol "Beli Tiket" ditekan.
     fun start(eventId: Int, listingId: Int, quantity: Int) {
-        viewModelScope.launch {
-            val user = repository.getUser()
-            val summary = repository.getEventSummary(eventId)
+        startJob?.cancel()
+        timerJob?.cancel()
 
-            // Ambil listing berdasarkan ID tiket yang dipilih pengguna.
-            val listing = repository.getListings(eventId)
-                .firstOrNull { it.id == listingId }
+        // Kosongkan data checkout sebelumnya.
+        _uiState.value = CheckoutUiState()
 
-            if (listing == null || listing.quantity <= 0) {
+        startJob = viewModelScope.launch {
+            try {
+                // Ambil profil akun yang sedang login.
+                val user = repository.getUser()
+
+                val summary = repository.getEventSummary(eventId)
+
+                val listing = repository.getListings(eventId)
+                    .firstOrNull { it.id == listingId }
+
+                if (listing == null || listing.quantity <= 0) {
+                    _uiState.value = CheckoutUiState(
+                        event = summary?.event,
+                        payError = "Tiket tidak tersedia atau stok sudah habis."
+                    )
+                    return@launch
+                }
+
                 _uiState.value = CheckoutUiState(
                     event = summary?.event,
-                    payError = "Tiket tidak tersedia atau stok sudah habis."
+                    listing = listing,
+                    quantity = quantity.coerceIn(1, listing.quantity),
+                    name = user.name,
+                    email = user.email,
+                    phone = user.phone
                 )
-                return@launch
+
+                startTimer()
+
+            } catch (e: CancellationException) {
+                throw e
+
+            } catch (e: Exception) {
+                Log.e(
+                    "CheckoutViewModel",
+                    "Gagal memuat data checkout: ${e.message}",
+                    e
+                )
+
+                _uiState.value = CheckoutUiState(
+                    payError = "Gagal memuat data pengguna. Silakan coba kembali."
+                )
             }
-
-            _uiState.value = CheckoutUiState(
-                event = summary?.event,
-                listing = listing,
-                quantity = quantity.coerceIn(
-                    1,
-                    listing.quantity
-                ),
-                name = user.name,
-                email = user.email,
-                phone = user.phone
-            )
-
-            startTimer()
         }
     }
 

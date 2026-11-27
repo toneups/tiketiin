@@ -15,11 +15,22 @@ class HotelRemoteDataSource(
     suspend fun getAvailableHotels(
         eventId: Int
     ): List<HotelDto> {
-        return api.getAvailableHotels(
+        val result = api.getAvailableHotels(
             request = GetAvailableHotelsRequestDto(
                 eventId = eventId
             )
         )
+
+        result.forEach {
+            android.util.Log.d(
+                "HOTEL_DEBUG",
+                "Nama=${it.hotelName}, " +
+                        "Harga=${it.pricePerNight}, " +
+                        "URL=${it.bookingUrl}"
+            )
+        }
+
+        return result
     }
 
     // READ ALL HOTELS
@@ -52,4 +63,6 @@ class HotelRemoteDataSource(
             hotelId = "eq.$hotelId"
         )
     }
+
+
 }

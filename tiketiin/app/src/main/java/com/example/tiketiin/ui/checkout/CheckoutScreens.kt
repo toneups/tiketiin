@@ -911,13 +911,14 @@ private fun HotelCard(
 ) {
     val hotel = item.hotel
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
 
-    val bookingUrl = hotel.bookingUrl?.trim()?.takeIf {
-        val uri = android.net.Uri.parse(it)
-
-        uri.scheme in listOf("http", "https") &&
-                !uri.host.isNullOrBlank()
-    }
+    val bookingUrl = hotel.bookingUrl
+        ?.trim()
+        ?.takeIf { url ->
+            url.startsWith("https://", ignoreCase = true) ||
+                    url.startsWith("http://", ignoreCase = true)
+        }
 
     Column(
         modifier = Modifier
@@ -1074,23 +1075,25 @@ private fun HotelCard(
             Spacer(modifier = Modifier.weight(1f))
 
             // Tombol booking eksternal
+            // Tombol booking eksternal
             Button(
                 onClick = {
-                    bookingUrl?.let {
-                        uriHandler.openUri(it)
+                    bookingUrl?.let { url ->
+                        uriHandler.openUri(url)
                     }
                 },
                 enabled = bookingUrl != null,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(34.dp),
+                    .height(36.dp),
                 contentPadding = PaddingValues(
                     horizontal = 4.dp,
                     vertical = 4.dp
                 ),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = BluePrimary
+                    containerColor = BluePrimary,
+                    disabledContainerColor = Color.LightGray
                 )
             ) {
                 Text(

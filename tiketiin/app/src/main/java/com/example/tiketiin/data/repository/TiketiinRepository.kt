@@ -139,7 +139,8 @@ class DefaultTiketiinRepository(
     private val orderRemoteDataSource: OrderRemoteDataSource = OrderRemoteDataSource(),
     private val reviewRemoteDataSource: ReviewRemoteDataSource = ReviewRemoteDataSource(),
     private val hotelLocalDataSource: HotelLocalDataSource? = null,
-    private val orderLocalDataSource: OrderLocalDataSource? = null
+    private val orderLocalDataSource: OrderLocalDataSource? = null,
+    private val profileRepository: ProfileRepository = ProfileRepository()
 ) : TiketiinRepository {
     override suspend fun uploadTicketProof(
         bytes: ByteArray,
@@ -167,7 +168,13 @@ class DefaultTiketiinRepository(
 
     private val me get() = DummyDataSource.CURRENT_USER_ID
 
-    override suspend fun getUser(): User = source.user
+    override suspend fun getUser(): User {
+        return if (SessionManager.hasSession) {
+            profileRepository.getMyProfile()
+        } else {
+            source.user
+        }
+    }
 
     override suspend fun login() {
         fakeNetwork()
