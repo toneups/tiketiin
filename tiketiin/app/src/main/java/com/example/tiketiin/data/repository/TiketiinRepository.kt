@@ -201,27 +201,47 @@ class DefaultTiketiinRepository(
     }
 
     override suspend fun getEventSummaries(): List<EventSummary> {
-        fakeNetwork()
-        return source.events.map { toSummary(it) }
+        return AuthenticatedRequest.execute {
+            eventRemoteDataSource.getEventsWithListings()
+                .map { it.toEntity().toSummary() }
+        }
     }
 
     override suspend fun getEventSummary(eventId: Int): EventSummary? {
-        return source.events.find { it.id == eventId }?.let { toSummary(it) }
+        return AuthenticatedRequest.execute {
+            eventRemoteDataSource.getEventWithListings(eventId)
+                ?.toEntity()
+                ?.toSummary()
+        }
     }
 
-    override suspend fun searchEvents(query: String, category: EventCategory?): List<EventSummary> {
-        fakeNetwork()
-        val keywords = query.trim().lowercase().split(" ").filter { it.isNotBlank() }
-        return source.events
-            .filter { event ->
-                val text = "${event.name} ${event.city} ${event.venue} ${event.category.label}".lowercase()
-                val matchQuery = keywords.isEmpty() || keywords.any { text.contains(it) }
-                val matchCategory = category == null || event.category == category
-                matchQuery && matchCategory
-            }
-            .map { toSummary(it) }
-    }
+    override suspend fun searchEvents(
+        query: String,
+        category: EventCategory?
+    ): List<EventSummary> {
+        val keywords = query.trim()
+            .lowercase()
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
 
+        return getEventSummaries().filter { summary ->
+            val event = summary.event
+            val text = listOf(
+                event.name,
+                event.city,
+                event.venue,
+                event.category.label
+            ).joinToString(" ").lowercase()
+
+            val matchQuery =
+                keywords.isEmpty() || keywords.any { it in text }
+
+            val matchCategory =
+                category == null || event.category == category
+
+            matchQuery && matchCategory
+        }
+    }
     override suspend fun recordView(eventId: Int) {
         val index = source.events.indexOfFirst { it.id == eventId }
         if (index >= 0) {

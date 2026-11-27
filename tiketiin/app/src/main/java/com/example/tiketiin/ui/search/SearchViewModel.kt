@@ -143,8 +143,7 @@ class SearchViewModel(
                 val results = allEvents
                     .asSequence()
                     .filter { summary ->
-                        !summary.event.date.isBefore(today) &&
-                                summary.ticketCount > 0
+                        !summary.event.date.isBefore(today)
                     }
                     .filter { summary ->
                         when (state.mode) {
