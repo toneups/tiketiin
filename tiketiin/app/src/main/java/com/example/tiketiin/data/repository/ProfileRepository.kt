@@ -50,7 +50,9 @@ class ProfileRepository {
             referralCode = referralCode.orEmpty(),
             isKycVerified = isKycVerified,
             recommendationNotificationsEnabled =
-                recommendationNotificationsEnabled
+                recommendationNotificationsEnabled,
+            membershipPoints = membershipPoints,
+            membershipEligibleSpending = membershipEligibleSpending
         )
     }
 

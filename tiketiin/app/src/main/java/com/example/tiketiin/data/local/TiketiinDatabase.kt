@@ -3,22 +3,28 @@ package com.example.tiketiin.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.example.tiketiin.data.local.dao.EventDao
-import com.example.tiketiin.data.local.entity.CachedEventEntity
+import com.example.tiketiin.data.local.dao.HotelDao
 import com.example.tiketiin.data.local.dao.ListingDao
+import com.example.tiketiin.data.local.dao.OrderDao
+import com.example.tiketiin.data.local.entity.CachedEventEntity
 import com.example.tiketiin.data.local.entity.CachedListingEntity
+import com.example.tiketiin.data.local.entity.HotelEntity
+import com.example.tiketiin.data.local.entity.OrderEntity
 
 @Database(
     entities = [
         CachedEventEntity::class,
-        CachedListingEntity::class
+        CachedListingEntity::class,
+        HotelEntity::class,
+        OrderEntity::class
     ],
-    version = 4,
+    version = 8,
     exportSchema = true
 )
 abstract class TiketiinDatabase : RoomDatabase() {
 
     abstract fun eventDao(): EventDao
     abstract fun listingDao(): ListingDao
-
+    abstract fun hotelDao(): HotelDao
+    abstract fun orderDao(): OrderDao
 }
-

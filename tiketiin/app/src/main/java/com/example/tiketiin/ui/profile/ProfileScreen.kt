@@ -39,6 +39,8 @@ import androidx.compose.ui.window.Dialog
 import com.example.tiketiin.data.remote.dto.CityOptionDto
 import com.example.tiketiin.ui.components.*
 import com.example.tiketiin.ui.theme.*
+import java.text.NumberFormat
+import java.util.Locale
 
 @Composable
 fun ProfileScreen(
@@ -58,6 +60,19 @@ fun ProfileScreen(
     val user = uiState.user
     val context = LocalContext.current
 
+    val membershipDiscountPercent = when (user?.level) {
+        "Silver" -> 5
+        "Gold" -> 10
+        "Platinum" -> 15
+        else -> 0
+    }
+
+    val rupiahFormatter = remember {
+        NumberFormat.getCurrencyInstance(Locale("id", "ID")).apply {
+            maximumFractionDigits = 0
+            minimumFractionDigits = 0
+        }
+    }
     var showLogout by remember { mutableStateOf(false) }
     var showEditProfile by remember { mutableStateOf(false) }
     var showAccountSettings by remember { mutableStateOf(false) }
@@ -183,7 +198,7 @@ fun ProfileScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 Column(
                     modifier = Modifier
@@ -236,26 +251,35 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
+                LevelProgress(
+                    level = user.level,
+                    progress = uiState.levelProgress,
+                    pointsToNextLevel = uiState.pointsToNextLevel,
+                    nextLevel = uiState.nextMembershipLevel
+                )
+
+// 3. DISKON DAN TOTAL HEMAT
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     MiniStat(
-                        value = "—",
-                        label = "Diskon belum tersedia",
+                        value = "$membershipDiscountPercent%",
+                        label = "Diskon ${user.level}",
                         background = YellowSoft,
                         valueColor = Color(0xFF4A3500),
                         modifier = Modifier.weight(1f)
                     )
 
                     MiniStat(
-                        value = "—",
-                        label = "Total hemat",
+                        value = rupiahFormatter.format(uiState.discountSaved),
+                        label = "Total Hemat",
                         background = BlueSoft,
                         modifier = Modifier.weight(1f)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 Text(
                     text = "Ringkasan Aktivitas",
@@ -273,21 +297,24 @@ fun ProfileScreen(
                         .background(BlueSoft)
                 ) {
                     MiniStat(
-                        "—",
+                        if (uiState.isLoadingStatistics) "..."
+                        else uiState.purchaseCount.toString(),
                         "Pembelian",
                         Modifier.weight(1f),
                         Color.Transparent
                     )
 
                     MiniStat(
-                        "—",
+                        if (uiState.isLoadingStatistics) "..."
+                        else uiState.ticketCount.toString(),
                         "Tiket dibeli",
                         Modifier.weight(1f),
                         Color.Transparent
                     )
 
                     MiniStat(
-                        "—",
+                        if (uiState.isLoadingStatistics) "..."
+                        else rupiahFormatter.format(uiState.spending),
                         "Pengeluaran",
                         Modifier.weight(1.3f),
                         Color.Transparent
@@ -297,9 +324,22 @@ fun ProfileScreen(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = "Statistik transaksi belum tersedia.",
+                    text = when {
+                        uiState.isLoadingStatistics ->
+                            "Memuat statistik transaksi..."
+
+                        uiState.statisticsError != null ->
+                            uiState.statisticsError
+
+                        else ->
+                            " "
+                    },
                     fontSize = 11.sp,
-                    color = TextGray
+                    color = if (uiState.statisticsError != null) {
+                        RedDark
+                    } else {
+                        TextGray
+                    }
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -1248,6 +1288,55 @@ fun ProfileScreen(
         }
     }
 }
+
+
+@Composable
+private fun LevelProgress(
+    level: String,
+    progress: Float,
+    pointsToNextLevel: Long,
+    nextLevel: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp)
+    ) {
+        Text(
+            text = "Level Progress",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = TextDark
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(50)),
+            color = Color(0xFFFFC107),
+            trackColor = LineGray
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = if (pointsToNextLevel > 0L) {
+                "$nextLevel"
+            } else {
+                "Platinum"
+            },
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.End,
+            fontSize = 10.sp,
+            color = TextGray
+        )
+    }
+}
+
 
 @Composable
 private fun EditProfileDialog(

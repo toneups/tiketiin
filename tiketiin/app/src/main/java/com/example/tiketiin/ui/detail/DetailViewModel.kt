@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import java.io.IOException
 
@@ -23,6 +24,7 @@ data class DetailUiState(
     val summary: EventSummary? = null,
     val listings: List<TicketListing> = emptyList(),
     val listing: TicketListing? = null,
+    val selectedListingId: Int? = null,
     val quantity: Int = 1,
     val selectedTab: Int = 0,
     val isSaving: Boolean = false
@@ -58,7 +60,10 @@ class DetailViewModel(
                     errorMessage = null,
                     actionError = null,
                     summary = null,
-                    listing = null
+                    listing = null,
+                    listings = emptyList(),
+                    selectedListingId = null,
+                    quantity = 1
                 )
             }
 
@@ -67,23 +72,29 @@ class DetailViewModel(
                     "ID event tidak valid."
                 }
 
-                // Ambil data terbaru dari Supabase.
+
+
+                // Ambil data terbaru dari Supabase
                 eventRepository.refreshEvents()
 
-                // Baca katalog yang tersinkron ke Room.
-                val summary = eventRepository
-                    .getCachedEvents()
+                // Ambil ringkasan event dari cache Room
+                val summary = eventRepository.getCachedEvents()
                     .firstOrNull { it.event.id == eventId }
                     ?: throw NoSuchElementException(
                         "Event tidak ditemukan."
                     )
 
-                // Ambil bookmark dari akun yang sedang login.
+                // Ambil bookmark dari akun yang sedang login
                 val savedIds =
                     wishlistRepository.getSavedEventIds()
 
+                // Ambil listing tiket aktif dari Supabase
                 val listings =
                     eventRepository.getActiveTicketListings(eventId)
+
+                // Pilih listing termurah sebagai pilihan awal
+                val selectedListing =
+                    listings.minByOrNull { it.price }
 
                 _uiState.update {
                     it.copy(
@@ -92,9 +103,9 @@ class DetailViewModel(
                         summary = summary.copy(
                             isSaved = eventId in savedIds
                         ),
-                        // Listing lengkap belum dihubungkan.
                         listings = listings,
-                        listing = listings.firstOrNull(),
+                        listing = selectedListing,
+                        selectedListingId = selectedListing?.id,
                         quantity = 1
                     )
                 }
@@ -125,6 +136,8 @@ class DetailViewModel(
                         isLoading = false,
                         summary = null,
                         listing = null,
+                        listings = emptyList(),
+                        selectedListingId = null,
                         errorMessage = when (e) {
                             is IOException ->
                                 "Koneksi bermasalah. Periksa internet."
@@ -133,7 +146,7 @@ class DetailViewModel(
                                 "Event tidak ditemukan."
 
                             else ->
-                                "Gagal memuat detail event."
+                                "Gagal memuat detail event: ${e.message}"
                         }
                     )
                 }
@@ -147,6 +160,22 @@ class DetailViewModel(
         }
     }
 
+    // Memilih listing tiket
+    fun selectListing(listingId: Int) {
+        val selected = _uiState.value.listings
+            .firstOrNull { it.id == listingId }
+            ?: return
+
+        _uiState.update {
+            it.copy(
+                listing = selected,
+                selectedListingId = selected.id,
+                quantity = 1
+            )
+        }
+    }
+
+    // Mengubah jumlah tiket sesuai stok listing
     fun changeQuantity(delta: Int) {
         _uiState.update { state ->
             val max = state.listing?.quantity ?: 1
@@ -158,6 +187,7 @@ class DetailViewModel(
         }
     }
 
+    // Menambah atau menghapus event dari wishlist
     fun toggleSaved() {
         val summary = _uiState.value.summary ?: return
 
@@ -165,7 +195,10 @@ class DetailViewModel(
 
         viewModelScope.launch {
             _uiState.update {
-                it.copy(isSaving = true, actionError = null)
+                it.copy(
+                    isSaving = true,
+                    actionError = null
+                )
             }
 
             try {
@@ -198,22 +231,6 @@ class DetailViewModel(
                     )
                 }
             }
-        }
-    }
-
-
-    fun selectListing(listingId: Int) {
-
-        val selectedListing =
-            _uiState.value.listings.firstOrNull {
-                it.id == listingId
-            } ?: return
-
-        _uiState.update {
-            it.copy(
-                listing = selectedListing,
-                quantity = 1
-            )
         }
     }
 }

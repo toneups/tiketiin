@@ -38,9 +38,37 @@ class AuthRepository(
         response.user
     }
 
+    suspend fun register(
+        name: String,
+        phone: String,
+        email: String,
+        password: String,
+        referralCode: String
+    ): RegisterResponse {
+        check(!SessionManager.hasSession) {
+            "Logout sebelum mendaftarkan akun baru."
+        }
+
+        return remoteDataSource.register(
+            name = name,
+            phone = phone,
+            email = email,
+            password = password,
+            referralCode = referralCode
+        )
+    }
+
     suspend fun getCurrentUser(): AuthUserDto {
         ensureValidSession()
         return remoteDataSource.getCurrentUser()
+    }
+
+    suspend fun getCurrentUserId(): String {
+        ensureValidSession()
+
+        return requireNotNull(SessionManager.userId) {
+            "ID pengguna tidak ditemukan."
+        }
     }
 
     private suspend fun performRefresh(): AuthUserDto {
@@ -91,42 +119,6 @@ class AuthRepository(
         Unit
     }
 
-    suspend fun logout() = sessionMutex.withLock {
-        try {
-            if (SessionManager.hasSession) {
-                if (SessionManager.isTokenExpired()) {
-                    performRefresh()
-                }
-
-                remoteDataSource.logout()
-            }
-        } finally {
-            withContext(NonCancellable) {
-                SessionManager.clearSession()
-            }
-        }
-    }
-
-    suspend fun register(
-        name: String,
-        phone: String,
-        email: String,
-        password: String,
-        referralCode: String
-    ): RegisterResponse {
-        check(!SessionManager.hasSession) {
-            "Logout sebelum mendaftarkan akun baru."
-        }
-
-        return remoteDataSource.register(
-            name = name,
-            phone = phone,
-            email = email,
-            password = password,
-            referralCode = referralCode
-        )
-    }
-
     suspend fun updatePassword(
         currentPassword: String,
         newPassword: String
@@ -170,6 +162,22 @@ class AuthRepository(
                 currentPassword = currentPassword,
                 newPassword = newPassword
             )
+        }
+    }
+
+    suspend fun logout() = sessionMutex.withLock {
+        try {
+            if (SessionManager.hasSession) {
+                if (SessionManager.isTokenExpired()) {
+                    performRefresh()
+                }
+
+                remoteDataSource.logout()
+            }
+        } finally {
+            withContext(NonCancellable) {
+                SessionManager.clearSession()
+            }
         }
     }
 }

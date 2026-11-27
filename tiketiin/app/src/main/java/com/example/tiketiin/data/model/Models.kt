@@ -28,6 +28,7 @@ data class Event(
     val posterEnd: Long,
     // Isi dengan R.drawable.nama_poster kalau gambar poster sudah ditaruh di res/drawable.
     val posterRes: Int? = null,
+    val posterUrl: String? = null,
     // Sisa waktu penjualan (jam) untuk label "Berakhir ... lagi". null = bukan flash ticket.
     val flashEndsInHours: Int? = null,
     // Indikator permintaan (dipakai Hot Opportunity dan For You).
@@ -59,14 +60,17 @@ data class TicketListing(
     val status: ListingStatus = ListingStatus.AKTIF,
     val views: Int = 0,
     val saves: Int = 0,
-    val offers: Int = 0
+    val offers: Int = 0,
+    val proofPath: String? = null
 )
+
 
 enum class OrderStatus(val label: String) {
     BELUM_BAYAR("Belum bayar"),
     DIPROSES("Diproses"),
-    DITERIMA("Pesanan diterima"),
-    SELESAI("Beri Penilaian")
+    SELESAI("Selesai"),
+    DIBATALKAN("Dibatalkan"),
+    KEDALUWARSA("Kedaluwarsa")
 }
 
 data class Order(
@@ -85,7 +89,13 @@ data class Order(
     val transactionNo: String,
     val createdAt: String,
     val status: OrderStatus,
-    val rating: Int = 0
+    val qrCode: String? = null,
+    val rating: Int = 0,
+    val buyerEmail: String = "",
+    val buyerPhone: String = "",
+    val ticketUsedAt: String? = null,
+    val paymentStatus: String = "PENDING",
+    val escrowStatus: String = "PENDING",
 )
 
 data class Hotel(
@@ -98,7 +108,11 @@ data class Hotel(
     val rating: Double,
     val availableRooms: Int,
     val colorStart: Long,
-    val colorEnd: Long
+    val colorEnd: Long,
+    val imageUrl: String? = null,
+    val bookingUrl: String? = null,
+    val address: String = "",
+    val city: String = ""
 )
 
 data class User(
@@ -110,7 +124,9 @@ data class User(
     val level: String,
     val referralCode: String,
     val isKycVerified: Boolean,
-    val recommendationNotificationsEnabled: Boolean = true
+    val recommendationNotificationsEnabled: Boolean = true,
+    val membershipPoints: Long = 0L,
+    val membershipEligibleSpending: Long = 0L
 )
 
 // Event + ringkasan listing-nya, dipakai kartu event di Beranda, Cari, For You, dll.

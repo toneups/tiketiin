@@ -1,9 +1,7 @@
 package com.example.tiketiin.data.remote.dto
 
 import com.google.gson.annotations.SerializedName
-
 data class ProfileDto(
-
     val id: String,
     val name: String,
     val email: String?,
@@ -21,5 +19,11 @@ data class ProfileDto(
     val avatarUrl: String? = null,
 
     @SerializedName("recommendation_notifications_enabled")
-    val recommendationNotificationsEnabled: Boolean = true
+    val recommendationNotificationsEnabled: Boolean = true,
+
+    @SerializedName("membership_points")
+    val membershipPoints: Long = 0L,
+
+    @SerializedName("membership_eligible_spending")
+    val membershipEligibleSpending: Long = 0L
 )

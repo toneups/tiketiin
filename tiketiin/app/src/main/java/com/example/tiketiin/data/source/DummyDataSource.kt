@@ -179,7 +179,7 @@ object DummyDataSource {
             "Kayla Safania", 1, "Festival, Free standing",
             800_000, 40_000, 840_000,
             "QRIS", "000109102026", "09-10-2026 19.20",
-            OrderStatus.DITERIMA
+            OrderStatus.DIPROSES
         ),
 
         // Pesanan masuk ke toko user (tab Order Toko)

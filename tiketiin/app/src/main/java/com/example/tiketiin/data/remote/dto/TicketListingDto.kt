@@ -26,5 +26,8 @@ data class TicketListingDto(
     val status: String,
     val views: Int,
     val saves: Int,
-    val offers: Int
+    val offers: Int,
+
+    @SerializedName("proof_path")
+    val proofPath: String?
 )

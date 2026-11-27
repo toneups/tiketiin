@@ -45,8 +45,8 @@ fun DetailScreen(
     onChangeQuantity: (Int) -> Unit,
     onSelectListing: (Int) -> Unit,
     onToggleSaved: () -> Unit,
-    onBuy: (eventId: Int, quantity: Int) -> Unit
-){
+    onBuy: (eventId: Int, listingId: Int, quantity: Int) -> Unit
+) {
     val summary = uiState.summary
     val listing = uiState.listing
 
@@ -279,11 +279,14 @@ fun DetailScreen(
                         Text(text = "Seating Plan", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(10.dp))
                         SeatingPlan(highlight = listing?.seatCategory ?: "")
+                        Spacer(modifier = Modifier.height(8.dp))
+
                         Text(
                             text = "Ilustrasi kategori kursi, bukan denah resmi venue.",
                             fontSize = 10.sp,
                             color = TextGray
                         )
+
                     }
                     1 -> {
                         Text(
@@ -328,42 +331,44 @@ fun DetailScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = "Harga Tiket", fontSize = 9.sp, color = TextDark)
+                    Text(
+                        text = "Harga Tiket",
+                        fontSize = 9.sp,
+                        color = TextDark
+                    )
+
                     Text(
                         text = if (listing != null) {
                             formatRupiah(uiState.totalPrice)
                         } else {
                             "Mulai ${formatRupiah(summary.lowestPrice)}"
-                        }, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
+                        },
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
 
                 if (listing != null) {
                     QuantityButton(
                         label = "−",
-                        onClick = {
-                            onChangeQuantity(-1)
-                        }
+                        onClick = { onChangeQuantity(-1) }
                     )
 
                     Text(
                         text = uiState.quantity.toString(),
                         fontSize = 13.sp,
-                        modifier = Modifier.padding(
-                            horizontal = 10.dp
-                        )
+                        modifier = Modifier.padding(horizontal = 10.dp)
                     )
 
                     QuantityButton(
                         label = "+",
-                        onClick = {
-                            onChangeQuantity(1)
-                        }
+                        onClick = { onChangeQuantity(1) }
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
@@ -374,17 +379,25 @@ fun DetailScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (summary.isSaved) AppIcons.Bookmark else AppIcons.BookmarkBorder,
+                        imageVector = if (summary.isSaved) {
+                            AppIcons.Bookmark
+                        } else {
+                            AppIcons.BookmarkBorder
+                        },
                         contentDescription = "Simpan event",
                         tint = BluePrimary
                     )
                 }
+
                 Spacer(modifier = Modifier.width(12.dp))
+
                 Button(
                     onClick = {
-                        // Checkout belum diintegrasikan
+                        listing?.let {
+                            onBuy(event.id, it.id, uiState.quantity)
+                        }
                     },
-                    enabled = false,
+                    enabled = listing != null,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = BluePrimary
@@ -400,17 +413,28 @@ fun DetailScreen(
                 }
             }
         }
-    }
 
-    if (showOfferInfo) {
-        AlertDialog(
-            onDismissRequest = { showOfferInfo = false },
-            confirmButton = {
-                TextButton(onClick = { showOfferInfo = false }) { Text(text = "Mengerti") }
-            },
-            title = { Text(text = "Ajukan Penawaran") },
-            text = { Text(text = "Fitur nego harga dengan penjual akan tersedia di versi berikutnya.") }
-        )
+        // Dialog informasi penawaran
+        if (showOfferInfo) {
+            AlertDialog(
+                onDismissRequest = { showOfferInfo = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = { showOfferInfo = false }
+                    ) {
+                        Text(text = "Mengerti")
+                    }
+                },
+                title = {
+                    Text(text = "Ajukan Penawaran")
+                },
+                text = {
+                    Text(
+                        text = "Fitur nego harga dengan penjual akan tersedia di versi berikutnya."
+                    )
+                }
+            )
+        }
     }
 }
 

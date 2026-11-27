@@ -159,32 +159,89 @@ object RecommendationCalculator {
 // FUNGSI 4 - Rekomendasi Hotel Terdekat
 // ---------------------------------------------------------------------------
 
-data class NearbyHotel(val hotel: Hotel, val distanceKm: Double)
+
+data class NearbyHotel(
+    val hotel: Hotel,
+    val distanceKm: Double
+)
 
 object HotelFinder {
     const val FIRST_RADIUS_KM = 5.0
     const val SECOND_RADIUS_KM = 10.0
     const val MAX_RESULT = 5
 
-    fun findNearby(venueLat: Double, venueLon: Double, hotels: List<Hotel>): List<NearbyHotel> {
-        val withDistance = hotels
-            .filter { it.availableRooms > 0 }
-            .map { NearbyHotel(it, haversineKm(venueLat, venueLon, it.latitude, it.longitude)) }
+    fun findNearby(
+        venueLat: Double,
+        venueLon: Double,
+        hotels: List<Hotel>
+    ): List<NearbyHotel> {
 
-        // Radius 5 km dulu; kalau kosong diperluas sekali ke 10 km.
-        var result = withDistance.filter { it.distanceKm <= FIRST_RADIUS_KM }
-        if (result.isEmpty()) {
-            result = withDistance.filter { it.distanceKm <= SECOND_RADIUS_KM }
+        require(venueLat.isFinite() && venueLat in -90.0..90.0) {
+            "Latitude lokasi event tidak valid."
         }
-        return result.sortedBy { it.distanceKm }.take(MAX_RESULT)
+
+        require(venueLon.isFinite() && venueLon in -180.0..180.0) {
+            "Longitude lokasi event tidak valid."
+        }
+
+        val withDistance = hotels
+            .filter {
+                it.availableRooms > 0 &&
+                        it.latitude.isFinite() &&
+                        it.longitude.isFinite() &&
+                        it.latitude in -90.0..90.0 &&
+                        it.longitude in -180.0..180.0
+            }
+            .map {
+                NearbyHotel(
+                    hotel = it,
+                    distanceKm = haversineKm(
+                        venueLat,
+                        venueLon,
+                        it.latitude,
+                        it.longitude
+                    )
+                )
+            }
+
+        val firstRadius = withDistance
+            .filter { it.distanceKm <= FIRST_RADIUS_KM }
+            .sortedBy { it.distanceKm }
+
+        if (firstRadius.size >= MAX_RESULT) {
+            return firstRadius.take(MAX_RESULT)
+        }
+
+        val secondRadius = withDistance
+            .filter {
+                it.distanceKm > FIRST_RADIUS_KM &&
+                        it.distanceKm <= SECOND_RADIUS_KM
+            }
+            .sortedBy { it.distanceKm }
+
+        return (firstRadius + secondRadius)
+            .sortedBy { it.distanceKm }
+            .take(MAX_RESULT)
     }
 
-    fun haversineKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    fun haversineKm(
+        lat1: Double,
+        lon1: Double,
+        lat2: Double,
+        lon2: Double
+    ): Double {
         val earthRadius = 6371.0
+
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)
+
         val a = sin(dLat / 2).pow(2) +
-            cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2).pow(2)
-        return 2 * earthRadius * asin(sqrt(a))
+                cos(Math.toRadians(lat1)) *
+                cos(Math.toRadians(lat2)) *
+                sin(dLon / 2).pow(2)
+
+        val safeA = a.coerceIn(0.0, 1.0)
+
+        return 2 * earthRadius * asin(sqrt(safeA))
     }
 }
