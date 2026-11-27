@@ -1,4 +1,3 @@
-
 package com.example.tiketiin.ui.auth
 
 import android.util.Log
@@ -26,8 +25,7 @@ class RegisterViewModel(
 
     private val _uiState = MutableStateFlow(RegisterUiState())
 
-    val uiState: StateFlow<RegisterUiState> =
-        _uiState.asStateFlow()
+    val uiState: StateFlow<RegisterUiState> = _uiState.asStateFlow()
 
     fun register(
         name: String,
@@ -36,21 +34,18 @@ class RegisterViewModel(
         password: String,
         referralCode: String
     ) {
-        if (
-            _uiState.value.isLoading ||
-            _uiState.value.isSuccess
-        ) {
+        if (_uiState.value.isLoading || _uiState.value.isSuccess) {
             return
         }
 
-        viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    isLoading = true,
-                    errorMessage = null
-                )
-            }
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                errorMessage = null
+            )
+        }
 
+        viewModelScope.launch {
             try {
                 val response = repository.register(
                     name = name,
@@ -71,44 +66,58 @@ class RegisterViewModel(
                         errorMessage = null
                     )
                 }
-
             } catch (e: CancellationException) {
                 throw e
-
             } catch (e: HttpException) {
-                val body = e.response()?.errorBody()?.string().orEmpty()
-                Log.e("Register", "HTTP ${e.code()}: $body")
+                val body = try {
+                    e.response()?.errorBody()?.string().orEmpty()
+                } catch (_: IOException) {
+                    ""
+                }
+
+                Log.e("Register", "Registrasi gagal: HTTP ${e.code()}")
 
                 val message = when {
-                    body.contains("user_already_exists") ||
-                            body.contains("already registered", ignoreCase = true) ->
+                    body.contains(
+                        "user_already_exists",
+                        ignoreCase = true
+                    ) || body.contains(
+                        "already registered",
+                        ignoreCase = true
+                    ) ->
                         "Email ini sudah terdaftar. Silakan masuk."
 
-                    body.contains("weak_password") ->
+                    body.contains(
+                        "weak_password",
+                        ignoreCase = true
+                    ) ->
                         "Kata sandi terlalu lemah. Gunakan kombinasi lain."
+
+                    e.code() == 429 ->
+                        "Terlalu banyak percobaan. Coba lagi nanti."
 
                     e.code() == 400 || e.code() == 422 ->
                         "Pendaftaran ditolak. Periksa email, kata sandi, " +
                                 "dan kode referral jika diisi."
-
-                    e.code() == 429 ->
-                        "Terlalu banyak percobaan. Coba lagi nanti."
 
                     else ->
                         "Terjadi kesalahan server (${e.code()})."
                 }
 
                 _uiState.update {
-                    it.copy(isLoading = false, errorMessage = message)
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = message
+                    )
                 }
             } catch (e: IOException) {
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = "Koneksi gagal. Periksa internet."
+                        errorMessage =
+                            "Koneksi bermasalah. Periksa internet lalu coba lagi."
                     )
                 }
-
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -116,6 +125,10 @@ class RegisterViewModel(
                         errorMessage =
                             "Registrasi belum berhasil. Coba kembali."
                     )
+                }
+            } finally {
+                _uiState.update {
+                    it.copy(isLoading = false)
                 }
             }
         }

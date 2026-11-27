@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.IOException
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 data class SearchUiState(
     val query: String = "",
@@ -147,8 +148,15 @@ class SearchViewModel(
                     }
                     .filter { summary ->
                         when (state.mode) {
-                            "flash" ->
-                                summary.event.flashEndsInHours != null
+                            "flash" -> {
+                                val daysUntilEvent = ChronoUnit.DAYS.between(
+                                    today,
+                                    summary.event.date
+                                )
+
+                                daysUntilEvent in 0L..7L &&
+                                        summary.ticketCount > 0
+                            }
 
                             else -> true
                         }
@@ -242,7 +250,7 @@ class SearchViewModel(
         return when (_uiState.value.mode) {
 
             "flash" -> results.sortedBy {
-                it.event.flashEndsInHours ?: Int.MAX_VALUE
+                it.event.date
             }
 
             "popular" -> results.sortedWith(

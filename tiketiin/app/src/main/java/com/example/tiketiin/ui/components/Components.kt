@@ -506,10 +506,15 @@ fun EventGridCard(
     modifier: Modifier = Modifier
 ) {
     val event = summary.event
-    val remainingHours = event.flashEndsInHours ?: 0
+
+    val remainingDays = java.time.temporal.ChronoUnit.DAYS.between(
+        java.time.LocalDate.now(java.time.ZoneId.of("Asia/Jakarta")),
+        event.date
+    )
+
     val expiryLabel = when {
-        remainingHours >= 24 -> "Berakhir ${remainingHours / 24} hari lagi"
-        remainingHours > 0 -> "Berakhir $remainingHours jam lagi"
+        remainingDays > 0 -> "Berakhir $remainingDays hari lagi"
+        remainingDays == 0L -> "Berakhir hari ini"
         else -> null
     }
     Column(
