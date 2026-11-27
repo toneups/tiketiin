@@ -88,6 +88,7 @@ import com.example.tiketiin.ui.seller.MyListingsViewModel
 import com.example.tiketiin.ui.seller.SalesReportScreen
 import com.example.tiketiin.ui.seller.SalesViewModel
 import com.example.tiketiin.ui.simpleFactory
+import com.example.tiketiin.ui.offers.TicketOffersScreen
 
 @Composable
 fun TiketiinApp() {
@@ -167,13 +168,12 @@ fun TiketiinApp() {
     fun openTab(route: String) {
         navController.navigate(route) {
             popUpTo(Routes.HOME) {
-                saveState = true
+                inclusive = false
             }
             launchSingleTop = true
-            restoreState = true
+            restoreState = false
         }
     }
-
     fun enterApp() {
         check(SessionManager.hasSession) {
             "Login Supabase diperlukan."
@@ -599,6 +599,13 @@ fun TiketiinApp() {
                     onRetry = viewModel::load
                 )
             }
+            composable("ticket_offers") {
+                TicketOffersScreen(
+                    onBack = {
+                        navController.popBackStack()
+                    }
+                )
+            }
 
             composable(Routes.ORDERS) {
                 val uiState by ordersViewModel.uiState
@@ -624,7 +631,12 @@ fun TiketiinApp() {
                     onRefund = { orderId ->
                         ordersViewModel.refundOrder(orderId)
                     },
-                    isRefunding = uiState.isRefunding
+                    isRefunding = uiState.isRefunding,
+                    onOpenOffers = {
+                        navController.navigate("ticket_offers") {
+                            launchSingleTop = true
+                        }
+                    }
                 )
             }
 
@@ -854,8 +866,11 @@ fun TiketiinApp() {
                     onChangeQuantity = viewModel::changeQuantity,
                     onSelectListing = viewModel::selectListing,
                     onToggleSaved = viewModel::toggleSaved,
-                    onBuy = { id, listingId, quantity ->
-                        startCheckout(id, listingId, quantity)
+                    onSubmitOffer = viewModel::submitOffer,
+                    onResetOfferResult = viewModel::resetOfferResult,
+                    onViewOffers = { navController.navigate("ticket_offers") { launchSingleTop = true } },
+                    onBuy = { id, listingId, quantity -> startCheckout(id, listingId, quantity)
+
                     }
                 )
             }

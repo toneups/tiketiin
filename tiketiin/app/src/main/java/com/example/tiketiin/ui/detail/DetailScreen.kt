@@ -4,38 +4,29 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.tiketiin.data.model.*
 import com.example.tiketiin.domain.*
 import com.example.tiketiin.ui.components.*
 import com.example.tiketiin.ui.theme.*
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 
 @Composable
 fun DetailScreen(
@@ -45,6 +36,9 @@ fun DetailScreen(
     onChangeQuantity: (Int) -> Unit,
     onSelectListing: (Int) -> Unit,
     onToggleSaved: () -> Unit,
+    onSubmitOffer: (listingId: Int, pricePerTicket: Long, quantity: Int) -> Unit,
+    onResetOfferResult: () -> Unit,
+    onViewOffers: () -> Unit,
     onBuy: (eventId: Int, listingId: Int, quantity: Int) -> Unit
 ) {
     val summary = uiState.summary
@@ -64,7 +58,21 @@ fun DetailScreen(
 
     val event = summary.event
     val context = LocalContext.current
-    var showOfferInfo by remember { mutableStateOf(false) }
+    var showOfferInfo by rememberSaveable(event.id) { mutableStateOf(false) }
+    var offerPrice by rememberSaveable(event.id) { mutableStateOf("") }
+    var offerError by rememberSaveable(event.id) { mutableStateOf<String?>(null) }
+    var showOfferSuccess by rememberSaveable(event.id) { mutableStateOf(false) }
+    var sentOfferPrice by rememberSaveable(event.id) { mutableStateOf(0L) }
+    var sentOfferQuantity by rememberSaveable(event.id) { mutableStateOf(1) }
+    var sentOfferCategory by rememberSaveable(event.id) { mutableStateOf("") }
+
+    LaunchedEffect(uiState.submittedOfferId) {
+        if (uiState.submittedOfferId != null) {
+            showOfferInfo = false
+            showOfferSuccess = true
+            onResetOfferResult()
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         Column(
@@ -118,15 +126,27 @@ fun DetailScreen(
                         )
                     }
                     Button(
-                        onClick = { showOfferInfo = true },
+                        onClick = {
+                            onResetOfferResult()
+                            offerPrice = ""
+                            offerError = null
+                            showOfferInfo = true
+                        },
+                        enabled = listing != null &&
+                                listing.quantity > 0 &&
+                                !uiState.isSubmittingOffer,
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
+                        contentPadding = PaddingValues(
+                            horizontal = 10.dp,
+                            vertical = 4.dp
+                        ),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = BluePrimary
+                        )
                     ) {
                         Text(text = "Ajukan Penawaran", fontSize = 10.sp)
                     }
                 }
-
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(modifier = Modifier.fillMaxWidth()) {
                     listOf("Tentang Event", "Term & Condition", "Ulasan").forEachIndexed { index, label ->
@@ -414,24 +434,141 @@ fun DetailScreen(
             }
         }
 
-        // Dialog informasi penawaran
-        if (showOfferInfo) {
+        if (showOfferSuccess) {
             AlertDialog(
-                onDismissRequest = { showOfferInfo = false },
-                confirmButton = {
-                    TextButton(
-                        onClick = { showOfferInfo = false }
-                    ) {
-                        Text(text = "Mengerti")
+                onDismissRequest = { showOfferSuccess = false },
+                title = { Text("Penawaran berhasil dikirim") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            "Penawaranmu ${formatRupiah(sentOfferPrice)} per tiket " +
+                                "untuk $sentOfferQuantity tiket $sentOfferCategory " +
+                                "sedang menunggu jawaban penjual."
+                        )
+                        Text(
+                            "Pantau statusnya di Pesanan → Penawaran Saya. " +
+                                "Jika diterima, kamu bisa melanjutkan pembayaran " +
+                                "dengan harga yang disepakati."
+                        )
                     }
                 },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showOfferSuccess = false
+                        onViewOffers()
+                    }) {
+                        Text("Lihat Penawaran")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showOfferSuccess = false }) {
+                        Text("Kembali ke Event")
+                    }
+                }
+            )
+        }
+
+        if (showOfferInfo && listing != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    if (!uiState.isSubmittingOffer) showOfferInfo = false
+                },
                 title = {
-                    Text(text = "Ajukan Penawaran")
+                    Text("Ajukan Penawaran")
                 },
                 text = {
-                    Text(
-                        text = "Fitur nego harga dengan penjual akan tersedia di versi berikutnya."
-                    )
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Tiket: ${listing.seatCategory}")
+                        Text("Harga saat ini: ${formatRupiah(listing.price)} / tiket")
+                        Text("Jumlah: ${uiState.quantity} tiket")
+
+                        OutlinedTextField(
+                            value = offerPrice,
+                            enabled = !uiState.isSubmittingOffer,
+                            onValueChange = { value ->
+                                offerPrice = value
+                                    .filter { it in '0'..'9' }
+                                    .take(15)
+                                offerError = null
+                            },
+                            label = { Text("Penawaran per tiket") },
+                            prefix = { Text("Rp ") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number
+                            ),
+                            isError = offerError != null,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        val price = offerPrice.toLongOrNull()
+                        if (price != null && price > 0) {
+                            Text(
+                                "Total penawaran: ${
+                                    formatRupiah(price * uiState.quantity)
+                                }"
+                            )
+                        }
+
+                        (offerError ?: uiState.offerError)?.let { message ->
+                            Text(
+                                text = message,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+
+                        Text(
+                            "Penawaran menunggu persetujuan penjual. " +
+                                    "Stok belum dipesan pada tahap ini.",
+                            fontSize = 11.sp
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = !uiState.isSubmittingOffer,
+                        onClick = {
+                            val price = offerPrice.toLongOrNull()
+
+                            when {
+                                price == null || price <= 0 ->
+                                    offerError = "Masukkan harga yang valid."
+
+                                price >= listing.price ->
+                                    offerError =
+                                        "Penawaran harus lebih rendah dari harga tiket."
+
+                                uiState.quantity !in 1..listing.quantity ->
+                                    offerError = "Jumlah melebihi stok tersedia."
+
+                                else -> {
+                                    sentOfferPrice = price
+                                    sentOfferQuantity = uiState.quantity
+                                    sentOfferCategory = listing.seatCategory
+
+                                    onSubmitOffer(
+                                        listing.id,
+                                        price,
+                                        uiState.quantity
+                                    )
+                                }
+                            }
+                        }
+                    ) {
+                        Text(
+                            if (uiState.isSubmittingOffer) "Mengirim…" else "Ajukan"
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        enabled = !uiState.isSubmittingOffer,
+                        onClick = { showOfferInfo = false }
+                    ) {
+                        Text("Batal")
+                    }
                 }
             )
         }

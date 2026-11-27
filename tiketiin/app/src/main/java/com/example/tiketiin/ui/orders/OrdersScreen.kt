@@ -22,6 +22,9 @@ import com.example.tiketiin.data.model.*
 import com.example.tiketiin.domain.*
 import com.example.tiketiin.ui.components.*
 import com.example.tiketiin.ui.theme.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.example.tiketiin.ui.offers.TicketOffersScreen
 
 
 @Composable
@@ -33,8 +36,12 @@ fun OrdersScreen(
     onConfirmTicket: (Int) -> Unit,
     onOpenTicket: (Int) -> Unit,
     onRefund: (Int) -> Unit,
+    onOpenOffers: () -> Unit,
     isRefunding: Boolean
 ) {
+    var showOffers by rememberSaveable(uiState.selectedTab) {
+        mutableStateOf(false)
+    }
     var selectedRefundOrderId by remember {
         mutableStateOf<Int?>(null)
     }
@@ -115,23 +122,58 @@ fun OrdersScreen(
             }
 
             // Tab status pesanan
+            // Tab penawaran dan status pesanan
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
                     .padding(top = 10.dp)
             ) {
+                // Penawaran buyer hanya ditampilkan di Order Saya.
+                if (uiState.selectedTab == 0) {
+                    Column(
+                        modifier = Modifier
+                            .width(110.dp)
+                            .clickable {
+                                showOffers = true
+                            },
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Penawaran",
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            color = if (showOffers) BluePrimary else TextDark,
+                            fontWeight = if (showOffers) {
+                                FontWeight.SemiBold
+                            } else {
+                                FontWeight.Normal
+                            },
+                            modifier = Modifier.padding(vertical = 12.dp)
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(2.dp)
+                                .background(
+                                    if (showOffers) BluePrimary else LineGray
+                                )
+                        )
+                    }
+                }
+
                 OrderStatus.entries.forEach { status ->
+                    val selected = !showOffers &&
+                            uiState.selectedStatus == status
 
-                    val selected =
-                        uiState.selectedStatus == status
-
-                    val count =
-                        uiState.countFor(status)
+                    val count = uiState.countFor(status)
 
                     Column(
                         modifier = Modifier
-                            .weight(1f)
+                            .width(110.dp)
                             .clickable {
+                                showOffers = false
                                 onSelectStatus(status)
                             },
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -142,19 +184,15 @@ fun OrdersScreen(
                             } else {
                                 status.label
                             },
-                            fontSize = 8.sp,
+                            fontSize = 11.sp,
                             maxLines = 1,
-                            color = if (selected) {
-                                BluePrimary
-                            } else {
-                                TextDark
-                            },
+                            color = if (selected) BluePrimary else TextDark,
                             fontWeight = if (selected) {
                                 FontWeight.SemiBold
                             } else {
                                 FontWeight.Normal
                             },
-                            modifier = Modifier.padding(vertical = 5.dp)
+                            modifier = Modifier.padding(vertical = 12.dp)
                         )
 
                         Box(
@@ -162,15 +200,19 @@ fun OrdersScreen(
                                 .fillMaxWidth()
                                 .height(2.dp)
                                 .background(
-                                    if (selected) BluePrimary
-                                    else TextGray
+                                    if (selected) BluePrimary else LineGray
                                 )
                         )
                     }
                 }
             }
-
             when {
+                showOffers && uiState.selectedTab == 0 -> {
+                    TicketOffersScreen(
+                        onBack = {},
+                        embedded = true
+                    )
+                }
                 uiState.isLoading -> {
                     LoadingBox()
                 }

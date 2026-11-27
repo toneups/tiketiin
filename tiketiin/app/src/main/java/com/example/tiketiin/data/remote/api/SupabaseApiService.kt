@@ -34,6 +34,7 @@ import com.example.tiketiin.data.remote.dto.UpdateListingRequest
 import com.example.tiketiin.data.remote.dto.ValidateTicketRequestDto
 import com.example.tiketiin.data.remote.dto.VenueDto
 import com.example.tiketiin.data.remote.dto.WishlistDto
+import com.example.tiketiin.data.remote.dto.TicketOfferDto
 
 import okhttp3.RequestBody
 import retrofit2.Response
@@ -495,4 +496,23 @@ interface SupabaseApiService {
         @Body request: Map<String, Int>
     ): Boolean
 
+    // PENAWARAN HARGA TIKET
+    @POST("rest/v1/rpc/submit_ticket_offer")
+    suspend fun submitTicketOffer(
+        @Body request: Map<String, Long>
+    ): Long
+
+    @GET("rest/v1/ticket_offers")
+    suspend fun getBuyerTicketOffers(
+        @Query("buyer_id")
+        buyerId: String,
+
+        @Query("select")
+        select: String =
+            "id,listing_id,price_per_ticket,quantity,status,created_at," +
+                    "listing:ticket_listings(seat_category,event:events(name))",
+
+        @Query("order")
+        order: String = "created_at.desc,id.desc"
+    ): List<TicketOfferDto>
 }

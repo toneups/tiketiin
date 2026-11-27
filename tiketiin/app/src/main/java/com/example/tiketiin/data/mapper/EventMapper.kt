@@ -83,7 +83,6 @@ fun CachedEventEntity.toModel(): Event {
         posterEnd = posterEnd,
         posterUrl = posterUrl,
         posterRes = null,
-        posterUrl = posterUrl,
         flashEndsInHours = remainingHours,
         baseSold = baseSold,
         baseWishlist = baseWishlist,
