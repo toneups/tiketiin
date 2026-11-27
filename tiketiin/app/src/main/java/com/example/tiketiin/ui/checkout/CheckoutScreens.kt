@@ -168,7 +168,7 @@ fun OrderFormScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = "Surat Pindah Kuasa", fontSize = 13.sp)
                         Text(
-                            text = "Buat surat pindah kuasa otomatis untuk penukaran tiket di venue.",
+                            text = "Kirim pesan pemberian kuasa melalui chat untuk penukaran tiket di venue.",
                             fontSize = 9.sp,
                             color = TextGray
                         )
@@ -922,8 +922,8 @@ private fun HotelCard(
 
     Column(
         modifier = Modifier
-            .width(170.dp)
-            .height(320.dp)
+            .width(190.dp)
+            .height(340.dp)
             .shadow(
                 elevation = 3.dp,
                 shape = RoundedCornerShape(12.dp)
@@ -1074,8 +1074,6 @@ private fun HotelCard(
             // Mendorong tombol ke bagian bawah
             Spacer(modifier = Modifier.weight(1f))
 
-            // Tombol booking eksternal
-            // Tombol booking eksternal
             Button(
                 onClick = {
                     bookingUrl?.let { url ->
@@ -1085,9 +1083,9 @@ private fun HotelCard(
                 enabled = bookingUrl != null,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(36.dp),
+                    .height(40.dp),
                 contentPadding = PaddingValues(
-                    horizontal = 4.dp,
+                    horizontal = 8.dp,
                     vertical = 4.dp
                 ),
                 shape = RoundedCornerShape(8.dp),
@@ -1102,8 +1100,10 @@ private fun HotelCard(
                     } else {
                         "Link belum tersedia"
                     },
-                    fontSize = 10.sp,
-                    maxLines = 1
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }
