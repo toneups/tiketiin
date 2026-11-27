@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.CancellationException
 
 // ---------------------------------------------------------------------------
 // Kelola Event
@@ -189,7 +190,7 @@ class MyListingsViewModel(
             val result = FairPriceCalculator.check(
                 listing.faceValue,
                 price,
-                repository.getPriceHistory(listing.eventId)
+                repository.getPriceHistory(listing.eventId, listing.seatCategory)
             )
             val error = when {
                 price < 10_000 -> "Harga belum benar."
@@ -201,7 +202,16 @@ class MyListingsViewModel(
                 _uiState.update { it.copy(priceError = error) }
                 return@launch
             }
-            repository.updateListingPrice(listing.id, price)
+            try {
+                repository.updateListingPrice(listing.id, price)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(priceError = "Gagal menyimpan harga. Periksa koneksi atau login, lalu coba lagi.")
+                }
+                return@launch
+            }
             _uiState.update { it.copy(priceError = null) }
             load()
             onSaved()
@@ -210,7 +220,16 @@ class MyListingsViewModel(
 
     fun delete(listingId: Int) {
         viewModelScope.launch {
-            repository.deleteListing(listingId)
+            try {
+                repository.deleteListing(listingId)
+                _uiState.update { it.copy(priceError = null) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(priceError = "Gagal menonaktifkan listing. Periksa koneksi atau login, lalu coba lagi.")
+                }
+            }
             load()
         }
     }

@@ -99,6 +99,7 @@ fun TiketiinApp() {
     }
 
     val scope = rememberCoroutineScope()
+
     val context = LocalContext.current.applicationContext
 
     val database = remember(context) {
@@ -115,12 +116,14 @@ fun TiketiinApp() {
 
     val repository = remember(
         hotelLocalDataSource,
-        orderLocalDataSource
+        orderLocalDataSource,
+        database
     ) {
         DefaultTiketiinRepository(
             source = DummyDataSource,
             hotelLocalDataSource = hotelLocalDataSource,
-            orderLocalDataSource = orderLocalDataSource
+            orderLocalDataSource = orderLocalDataSource,
+            listingDao = database.listingDao()
         )
     }
 
@@ -1002,6 +1005,7 @@ fun TiketiinApp() {
                         sellViewModel::updateFaceValue,
                     onPriceChange = sellViewModel::updatePrice,
                     onToggleProof = sellViewModel::toggleProof,
+                    onPickProof = { bytes, mime, name -> sellViewModel.uploadProof(bytes, mime, name) },
                     onSubmit = {
                         sellViewModel.submitForm {
                             navController.navigate(

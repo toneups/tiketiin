@@ -14,23 +14,30 @@ import com.example.tiketiin.data.source.DummyDataSource
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import com.example.tiketiin.data.remote.HotelRemoteDataSource
-import com.example.tiketiin.data.mapper.toHotelModels
 import com.example.tiketiin.data.auth.AuthenticatedRequest
-import com.example.tiketiin.data.remote.EventRemoteDataSource
-import com.example.tiketiin.data.mapper.toModel
-import com.example.tiketiin.data.remote.OrderRemoteDataSource
-import com.example.tiketiin.data.local.HotelLocalDataSource
-import com.example.tiketiin.data.mapper.toEntity
-import com.example.tiketiin.data.mapper.toHotelModelsFromLocal
-import kotlinx.coroutines.CancellationException
-import com.example.tiketiin.data.local.OrderLocalDataSource
-import com.example.tiketiin.data.mapper.toOrderModelsFromLocal
-import com.example.tiketiin.data.mapper.toEntity
-import com.example.tiketiin.data.remote.dto.CreateHotelRequestDto
-import com.example.tiketiin.data.remote.dto.UpdateHotelRequestDto
 import com.example.tiketiin.data.auth.SessionManager
+import com.example.tiketiin.data.local.HotelLocalDataSource
+import com.example.tiketiin.data.local.OrderLocalDataSource
+import com.example.tiketiin.data.local.entity.CachedListingEntity
+import com.example.tiketiin.data.mapper.toEntity
+import com.example.tiketiin.data.mapper.toHotelModels
+import com.example.tiketiin.data.mapper.toHotelModelsFromLocal
+import com.example.tiketiin.data.mapper.toModel
+import com.example.tiketiin.data.mapper.toOrderModelsFromLocal
+import com.example.tiketiin.data.remote.EventRemoteDataSource
+import com.example.tiketiin.data.remote.HotelRemoteDataSource
+import com.example.tiketiin.data.remote.OrderRemoteDataSource
+import com.example.tiketiin.data.remote.RetrofitClient
 import com.example.tiketiin.data.remote.ReviewRemoteDataSource
+import com.example.tiketiin.data.remote.dto.CreateHotelRequestDto
+import com.example.tiketiin.data.remote.dto.CreateListingRequest
+import com.example.tiketiin.data.remote.dto.ListingDto
+import com.example.tiketiin.data.remote.dto.PriceHistoryRequest
+import com.example.tiketiin.data.remote.dto.UpdateHotelRequestDto
+import com.example.tiketiin.data.remote.dto.UpdateListingRequest
+import kotlinx.coroutines.CancellationException
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 interface TiketiinRepository {
     // Akun
@@ -38,6 +45,7 @@ interface TiketiinRepository {
     suspend fun login()
     suspend fun logout()
     suspend fun verifyKyc()
+    suspend fun uploadTicketProof(bytes: ByteArray, mimeType: String, fileName: String): String
 
     // Event
     suspend fun getEventSummaries(): List<EventSummary>
@@ -59,7 +67,7 @@ interface TiketiinRepository {
     suspend fun addListing(listing: TicketListing): Int
     suspend fun updateListingPrice(listingId: Int, price: Long)
     suspend fun deleteListing(listingId: Int)
-    suspend fun getPriceHistory(eventId: Int): List<Long>
+    suspend fun getPriceHistory(eventId: Int, seatCategory: String): List<Long>
 
     // Hot Opportunity
     suspend fun getDemandStats(): List<EventDemandStats>
@@ -112,11 +120,31 @@ class DefaultTiketiinRepository(
     private val hotelRemoteDataSource: HotelRemoteDataSource = HotelRemoteDataSource(),
     private val eventRemoteDataSource: EventRemoteDataSource = EventRemoteDataSource(),
     private val orderRemoteDataSource: OrderRemoteDataSource = OrderRemoteDataSource(),
-    private val reviewRemoteDataSource: ReviewRemoteDataSource =
-        ReviewRemoteDataSource(),
+    private val reviewRemoteDataSource: ReviewRemoteDataSource = ReviewRemoteDataSource(),
     private val hotelLocalDataSource: HotelLocalDataSource? = null,
-    private val orderLocalDataSource: OrderLocalDataSource? = null
+    private val orderLocalDataSource: OrderLocalDataSource? = null,
+    private val listingDao: com.example.tiketiin.data.local.dao.ListingDao? = null
 ) : TiketiinRepository {
+    override suspend fun uploadTicketProof(
+        bytes: ByteArray,
+        mimeType: String,
+        fileName: String
+    ): String {
+        val userId = SessionManager.userId
+            ?: error("Silakan login dengan akun Supabase terlebih dahulu.")
+        val path = "$userId/$fileName"
+        val response = AuthenticatedRequest.execute {
+            RetrofitClient.api.uploadTicketProof(
+                path = path,
+                contentType = mimeType,
+                body = bytes.toRequestBody(mimeType.toMediaType())
+            )
+        }
+        check(response.isSuccessful) {
+            "Upload gagal (HTTP ${response.code()})"
+        }
+        return path
+    }
 
     // Meniru jeda jaringan supaya state loading terlihat saat demo.
     private suspend fun fakeNetwork() = delay(350)
@@ -225,34 +253,147 @@ class DefaultTiketiinRepository(
     }
 
     override suspend fun getListing(listingId: Int): TicketListing? {
-        return source.listings.find { it.id == listingId }
+        // Coba ambil dari Supabase dulu (listing yang baru diterbitkan).
+        val remote = try {
+            AuthenticatedRequest.execute {
+                RetrofitClient.api.getListingById(id = "eq.$listingId")
+            }.firstOrNull()?.toModel()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+        // Kalau tidak ketemu, pakai data dummy seperti sebelumnya.
+        return remote ?: source.listings.find { it.id == listingId }
     }
+
+    private fun ListingDto.toModel() = TicketListing(
+        id = id,
+        eventId = eventId,
+        sellerId = sellerId,
+        seatCategory = seatCategory,
+        row = seatRow,
+        faceValue = faceValue,
+        price = price,
+        quantity = quantity,
+        status = runCatching { ListingStatus.valueOf(status) }
+            .getOrDefault(ListingStatus.AKTIF),
+        views = views,
+        saves = saves,
+        offers = offers
+    )
 
     override suspend fun getMyListings(): List<TicketListing> {
-        fakeNetwork()
-        return source.listings.filter { it.sellerId == me }
+        val sellerId = SessionManager.userId
+            ?: return source.listings.filter { it.sellerId == me }
+        return try {
+            val remote = AuthenticatedRequest.execute {
+                RetrofitClient.api.getMyListings(sellerId = "eq.$sellerId")
+            }
+            // Simpan salinan ke Room (cache)
+            try {
+                listingDao?.replaceListings(sellerId, remote.map { it.toEntity() })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // gagal menyimpan cache tidak boleh menggagalkan daftar
+            }
+            remote.map { it.toModel() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Offline / token kedaluwarsa: pakai cache Room, lalu dummy sebagai cadangan terakhir
+            val cached = try {
+                listingDao?.getListingsBySeller(sellerId)?.map { it.toModel() }
+            } catch (ex: Exception) {
+                null
+            }
+            if (!cached.isNullOrEmpty()) cached
+            else source.listings.filter { it.sellerId == me }
+        }
     }
 
+    private fun ListingDto.toEntity() = CachedListingEntity(
+        id = id,
+        eventId = eventId,
+        sellerId = sellerId,
+        seatCategory = seatCategory,
+        seatRow = seatRow,
+        faceValue = faceValue,
+        price = price,
+        quantity = quantity,
+        status = status,
+        views = views,
+        saves = saves,
+        offers = offers
+    )
+
+    private fun CachedListingEntity.toModel() = TicketListing(
+        id = id,
+        eventId = eventId,
+        sellerId = sellerId,
+        seatCategory = seatCategory,
+        row = seatRow,
+        faceValue = faceValue,
+        price = price,
+        quantity = quantity,
+        status = runCatching { ListingStatus.valueOf(status) }
+            .getOrDefault(ListingStatus.AKTIF),
+        views = views,
+        saves = saves,
+        offers = offers
+    )
+
     override suspend fun addListing(listing: TicketListing): Int {
-        fakeNetwork()
-        val id = source.nextListingId()
-        source.listings.add(listing.copy(id = id, sellerId = me))
-        return id
+        val sellerId = SessionManager.userId
+            ?: error("Silakan login dengan akun Supabase terlebih dahulu.")
+
+        val created = AuthenticatedRequest.execute {
+            RetrofitClient.api.createListing(
+                body = CreateListingRequest(
+                    eventId = listing.eventId,
+                    sellerId = sellerId,
+                    seatCategory = listing.seatCategory,
+                    seatRow = listing.row,
+                    faceValue = listing.faceValue,
+                    price = listing.price,
+                    quantity = listing.quantity
+                )
+            )
+        }
+        return created.first().id
     }
 
     override suspend fun updateListingPrice(listingId: Int, price: Long) {
-        val index = source.listings.indexOfFirst { it.id == listingId }
-        if (index >= 0) {
-            source.listings[index] = source.listings[index].copy(price = price)
+        AuthenticatedRequest.execute {
+            RetrofitClient.api.updateListing(
+                id = "eq.$listingId",
+                body = UpdateListingRequest(price = price)
+            )
         }
     }
 
     override suspend fun deleteListing(listingId: Int) {
-        source.listings.removeAll { it.id == listingId }
+        AuthenticatedRequest.execute {
+            RetrofitClient.api.updateListing(
+                id = "eq.$listingId",
+                body = UpdateListingRequest(status = "NONAKTIF")
+            )
+        }
     }
 
-    override suspend fun getPriceHistory(eventId: Int): List<Long> {
-        return source.priceHistory[eventId] ?: emptyList()
+    override suspend fun getPriceHistory(eventId: Int, seatCategory: String): List<Long> {
+        return try {
+            AuthenticatedRequest.execute {
+                RetrofitClient.api.getPriceHistory(
+                    PriceHistoryRequest(eventId, seatCategory)
+                )
+            }.map { it.unitPrice }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
     override suspend fun getDemandStats(): List<EventDemandStats> {

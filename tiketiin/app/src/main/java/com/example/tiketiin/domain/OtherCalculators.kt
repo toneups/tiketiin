@@ -38,15 +38,16 @@ data class FairPriceResult(
 )
 
 object FairPriceCalculator {
-    const val MIN_MARKUP = 0.10
-    const val MAX_MARKUP = 0.45
-    const val RECOMMENDED_MARKUP = 0.30
+    const val MIN_MARKUP = 0.0
+    const val MAX_MARKUP = 0.22
+    const val RECOMMENDED_MARKUP = 0.15
+    const val REVIEW_MARKUP = 0.22
     const val REJECT_MARKUP = 0.50
 
     fun check(faceValue: Long, sellPrice: Long, history: List<Long>): FairPriceResult {
         // Rentang wajar: dari histori tiket sejenis kalau ada, kalau tidak dari markup 10%-45%.
-        val defaultMin = roundTo(faceValue * (1 + MIN_MARKUP), 50_000)
-        val defaultMax = roundTo(faceValue * (1 + MAX_MARKUP), 50_000)
+        val defaultMin = roundTo(faceValue * (1 + MIN_MARKUP), 10_000)
+        val defaultMax = roundTo(faceValue * (1 + MAX_MARKUP), 10_000)
         val useHistory = history.size >= 3
         val rangeMin = if (useHistory) history.min() else defaultMin
         val rangeMax = if (useHistory) history.max() else defaultMax
@@ -60,7 +61,7 @@ object FairPriceCalculator {
 
         val status = when {
             markup > REJECT_MARKUP -> PriceStatus.TERLALU_TINGGI
-            sellPrice > rangeMax -> PriceStatus.PERLU_DITINJAU
+            markup > REVIEW_MARKUP || sellPrice > rangeMax -> PriceStatus.PERLU_DITINJAU
             else -> PriceStatus.WAJAR
         }
 

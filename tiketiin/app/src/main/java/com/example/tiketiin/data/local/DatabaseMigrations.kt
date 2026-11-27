@@ -1,4 +1,3 @@
-
 package com.example.tiketiin.data.local
 
 import androidx.room.migration.Migration
@@ -100,7 +99,6 @@ object DatabaseMigrations {
         }
     }
 
-
     val MIGRATION_5_6 = object : Migration(5, 6) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
@@ -144,4 +142,25 @@ object DatabaseMigrations {
         }
     }
 
+    // Tabel cache listing dari fair-price
+    val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS cached_listings (" +
+                        "id INTEGER NOT NULL, " +
+                        "eventId INTEGER NOT NULL, " +
+                        "sellerId TEXT NOT NULL, " +
+                        "seatCategory TEXT NOT NULL, " +
+                        "seatRow TEXT NOT NULL, " +
+                        "faceValue INTEGER NOT NULL, " +
+                        "price INTEGER NOT NULL, " +
+                        "quantity INTEGER NOT NULL, " +
+                        "status TEXT NOT NULL, " +
+                        "views INTEGER NOT NULL, " +
+                        "saves INTEGER NOT NULL, " +
+                        "offers INTEGER NOT NULL, " +
+                        "PRIMARY KEY(id))"
+            )
+        }
+    }
 }
