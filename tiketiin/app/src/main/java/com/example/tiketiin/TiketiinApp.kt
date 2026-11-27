@@ -1,4 +1,3 @@
-
 package com.example.tiketiin
 
 import android.widget.Toast
@@ -254,7 +253,7 @@ fun TiketiinApp() {
             }
         },
 
-    ) { innerPadding ->
+        ) { innerPadding ->
         NavHost(
             navController = navController,
             startDestination = startDestination,
@@ -804,6 +803,10 @@ fun TiketiinApp() {
                 arguments = listOf(
                     navArgument("eventId") {
                         type = NavType.IntType
+                    },
+                    navArgument("remote") {
+                        type = NavType.BoolType
+                        defaultValue = false
                     }
                 )
             ) { entry ->
@@ -815,7 +818,8 @@ fun TiketiinApp() {
                     factory = simpleFactory {
                         DetailViewModel(
                             eventRepository = eventRepository,
-                            wishlistRepository = WishlistRepository()
+                            wishlistRepository = WishlistRepository(),
+                            repository = repository
                         )
                     }
                 )

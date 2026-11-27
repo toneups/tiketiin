@@ -37,7 +37,8 @@ data class Event(
     val viewCount: Int = 0,
     val viewsLast7Days: Int = 0,
     // Id user yang membuat event (untuk Kelola Event). 0 = bawaan sistem.
-    val createdBy: String? = null
+    val createdBy: String? = null,
+    val venueId: Int? = null
 )
 
 enum class ListingStatus(val label: String) {

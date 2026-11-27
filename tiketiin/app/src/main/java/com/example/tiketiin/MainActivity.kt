@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import com.example.tiketiin.data.auth.SessionManager
 import com.example.tiketiin.ui.theme.TiketiinTheme
 import kotlinx.coroutines.CancellationException
-
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {

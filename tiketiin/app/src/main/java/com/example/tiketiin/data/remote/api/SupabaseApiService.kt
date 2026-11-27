@@ -1,32 +1,39 @@
 package com.example.tiketiin.data.remote.api
 
+import com.example.tiketiin.data.remote.dto.ActiveListingDto
 import com.example.tiketiin.data.remote.dto.CityOptionDto
 import com.example.tiketiin.data.remote.dto.ConfirmTicketRequestDto
+import com.example.tiketiin.data.remote.dto.CreateEventDto
 import com.example.tiketiin.data.remote.dto.CreateHotelRequestDto
+import com.example.tiketiin.data.remote.dto.CreateListingRequest
 import com.example.tiketiin.data.remote.dto.CreateOrderRequestDto
+import com.example.tiketiin.data.remote.dto.CreateReviewRequestDto
+import com.example.tiketiin.data.remote.dto.CreateVenueDto
 import com.example.tiketiin.data.remote.dto.CreateWishlistRequest
+import com.example.tiketiin.data.remote.dto.EventDemandStatsDto
 import com.example.tiketiin.data.remote.dto.EventDto
+import com.example.tiketiin.data.remote.dto.EventViewDto
 import com.example.tiketiin.data.remote.dto.GetAvailableHotelsRequestDto
 import com.example.tiketiin.data.remote.dto.HotelDto
+import com.example.tiketiin.data.remote.dto.ListingDto
+import com.example.tiketiin.data.remote.dto.ListingRowDto
 import com.example.tiketiin.data.remote.dto.NotificationDto
 import com.example.tiketiin.data.remote.dto.NotificationReadUpdate
 import com.example.tiketiin.data.remote.dto.OrderDto
 import com.example.tiketiin.data.remote.dto.PayOrderRequestDto
+import com.example.tiketiin.data.remote.dto.PriceHistoryDto
+import com.example.tiketiin.data.remote.dto.PriceHistoryRequest
 import com.example.tiketiin.data.remote.dto.ProfileDto
 import com.example.tiketiin.data.remote.dto.PurchaseHistoryDto
+import com.example.tiketiin.data.remote.dto.ReviewDto
+import com.example.tiketiin.data.remote.dto.SellerSalesOrderDto
 import com.example.tiketiin.data.remote.dto.TicketListingDto
+import com.example.tiketiin.data.remote.dto.UpdateEventDto
 import com.example.tiketiin.data.remote.dto.UpdateHotelRequestDto
+import com.example.tiketiin.data.remote.dto.UpdateListingRequest
 import com.example.tiketiin.data.remote.dto.ValidateTicketRequestDto
 import com.example.tiketiin.data.remote.dto.VenueDto
 import com.example.tiketiin.data.remote.dto.WishlistDto
-import com.example.tiketiin.data.remote.dto.ReviewDto
-import com.example.tiketiin.data.remote.dto.CreateReviewRequestDto
-import com.example.tiketiin.data.remote.dto.PriceHistoryDto
-import com.example.tiketiin.data.remote.dto.PriceHistoryRequest
-import com.example.tiketiin.data.remote.dto.CreateListingRequest
-import com.example.tiketiin.data.remote.dto.ListingRowDto
-import com.example.tiketiin.data.remote.dto.ListingDto
-import com.example.tiketiin.data.remote.dto.UpdateListingRequest
 
 import okhttp3.RequestBody
 import retrofit2.Response
@@ -53,6 +60,13 @@ interface SupabaseApiService {
         select: String = "*,venue:venues(*)",
         @Query("order")
         order: String = "date.asc"
+    ): List<EventDto>
+
+    @GET("rest/v1/events")
+    suspend fun getEventsByOwner(
+        @Query("created_by") ownerFilter: String,
+        @Query("select") select: String = "*,venue:venues(*)",
+        @Query("order") order: String = "date.asc"
     ): List<EventDto>
 
     @GET("rest/v1/events")
@@ -94,6 +108,61 @@ interface SupabaseApiService {
         @Query("ticket_listings.quantity")
         quantity: String = "gt.0"
     ): List<EventDto>
+
+    @POST("rest/v1/events")
+    suspend fun createEvent(@Body event: CreateEventDto)
+
+    @Headers("Prefer: return=representation")
+    @PATCH("rest/v1/events")
+    suspend fun updateEvent(
+        @Query("id") idFilter: String,
+        @Body event: UpdateEventDto
+    ): List<EventDto>
+
+    @Headers("Prefer: return=representation")
+    @DELETE("rest/v1/events")
+    suspend fun deleteEvent(@Query("id") idFilter: String): List<EventDto>
+
+    @Headers("Prefer: return=representation")
+    @POST("rest/v1/venues")
+    suspend fun createVenue(@Body venue: CreateVenueDto): List<VenueDto>
+
+    @GET("rest/v1/ticket_listings")
+    suspend fun getCheapestActiveListing(
+        @Query("event_id") eventFilter: String,
+        @Query("status") status: String = "eq.AKTIF",
+        @Query("quantity") quantity: String = "gt.0",
+        @Query("order") order: String = "price.asc,id.asc",
+        @Query("limit") limit: Int = 1
+    ): List<ActiveListingDto>
+
+    @Headers("Prefer: resolution=ignore-duplicates,return=minimal")
+    @POST("rest/v1/event_views")
+    suspend fun recordEventView(
+        @Body view: EventViewDto,
+        @Query("on_conflict") conflictColumns: String = "user_id,event_id,viewed_on"
+    )
+
+    @GET("rest/v1/rpc/get_event_demand_stats")
+    suspend fun getEventDemandStats(): List<EventDemandStatsDto>
+
+    @GET("rest/v1/orders")
+    suspend fun getPaidSellerOrders(
+        @Query("seller_id") sellerFilter: String,
+        @Query("status") orderStatus: String = "in.(PAID,COMPLETED)",
+        @Query("payments.status") paymentStatus: String = "eq.SUCCESS",
+        @Query("select") select: String =
+            "event_id,unit_price,quantity,event:events(name),payments!inner(status)",
+        @Query("order") order: String = "id.asc",
+        @Query("limit") limit: Int = 100,
+        @Query("offset") offset: Int = 0
+    ): List<SellerSalesOrderDto>
+
+    @POST("storage/v1/object/event-posters/{path}")
+    suspend fun uploadEventPoster(
+        @Path("path", encoded = true) path: String,
+        @Body image: RequestBody
+    ): Unit
 
 
     // =========================

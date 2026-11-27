@@ -48,6 +48,17 @@ import com.example.tiketiin.domain.formatDateShort
 import com.example.tiketiin.domain.formatFlashLabel
 import com.example.tiketiin.domain.formatRupiah
 import com.example.tiketiin.ui.theme.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ConfirmationNumber
+import androidx.compose.material.icons.outlined.LocalFireDepartment
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.ui.draw.rotate
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import coil.compose.AsyncImage
+import androidx.compose.ui.res.vectorResource
+import com.example.tiketiin.R
 
 // ---------------------------------------------------------------------------
 // Logo
@@ -222,7 +233,8 @@ fun FormField(
 fun ScreenTopBar(
     title: String,
     onBack: (() -> Unit)? = null,
-    containerColor: Color = Color.White
+    containerColor: Color = Color.White,
+    titleFontWeight: FontWeight = FontWeight.Medium
 ) {
     Box(
         modifier = Modifier
@@ -240,7 +252,7 @@ fun ScreenTopBar(
         Text(
             text = title,
             fontSize = 18.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = titleFontWeight,
             color = TextDark,
             modifier = Modifier.align(Alignment.Center)
         )
@@ -255,11 +267,11 @@ fun BottomNavBar(
     onSelect: (String) -> Unit
 ) {
     val items = listOf(
-        NavItem(Routes.HOME, "Beranda", AppIcons.Home),
-        NavItem(Routes.FOR_YOU, "Untukmu", AppIcons.Fire),
+        NavItem(Routes.HOME, "Beranda", ImageVector.vectorResource(id = R.drawable.ic_nav_home_heart)),
+        NavItem(Routes.FOR_YOU, "Untukmu", Icons.Outlined.LocalFireDepartment),
         NavItem(Routes.SELL, "Jual Tiket", AppIcons.Add),
-        NavItem(Routes.ORDERS, "Pesanan", AppIcons.Ticket),
-        NavItem(Routes.PROFILE, "Profil", AppIcons.Person)
+        NavItem(Routes.ORDERS, "Pesanan", Icons.Outlined.ConfirmationNumber),
+        NavItem(Routes.PROFILE, "Profil", Icons.Rounded.Person)
     )
 
     Row(
@@ -303,7 +315,9 @@ fun BottomNavBar(
                         imageVector = item.icon,
                         contentDescription = item.label,
                         tint = color,
-                        modifier = Modifier.size(26.dp)
+                        modifier = Modifier
+                            .size(26.dp)
+                            .rotate(if (item.route == Routes.ORDERS) -45f else 0f)
                     )
                 }
                 Spacer(modifier = Modifier.height(2.dp))
@@ -329,6 +343,10 @@ fun PosterBox(
     titleSize: TextUnit = 14.sp,
     showTitle: Boolean = true
 ) {
+    val posterRes = event.posterRes
+    val posterUrl = event.posterUrl?.trim()?.takeIf { it.isNotEmpty() }
+    val posterLoaded = remember(posterUrl) { mutableStateOf(false) }
+
     Box(
         modifier = modifier.background(
             Brush.linearGradient(
@@ -340,35 +358,38 @@ fun PosterBox(
         ),
         contentAlignment = Alignment.Center
     ) {
+        // Judul sebagai placeholder selama gambar belum ada / belum termuat
+        if (showTitle && posterRes == null && !posterLoaded.value) {
+            Text(
+                text = event.name,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = titleSize,
+                textAlign = TextAlign.Center,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
+
         when {
-            !event.posterUrl.isNullOrBlank() -> {
+            posterUrl != null -> {
                 AsyncImage(
-                    model = event.posterUrl,
+                    model = posterUrl,
                     contentDescription = "Poster ${event.name}",
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.matchParentSize(),
+                    onSuccess = { posterLoaded.value = true },
+                    onError = { posterLoaded.value = false }
                 )
             }
 
-            event.posterRes != null -> {
+            posterRes != null -> {
                 Image(
-                    painter = painterResource(id = event.posterRes),
+                    painter = painterResource(id = posterRes),
                     contentDescription = event.name,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-
-            showTitle -> {
-                Text(
-                    text = event.name,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = titleSize,
-                    textAlign = TextAlign.Center,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(8.dp)
+                    modifier = Modifier.matchParentSize()
                 )
             }
         }
@@ -486,7 +507,12 @@ fun EventGridCard(
     modifier: Modifier = Modifier
 ) {
     val event = summary.event
-    val flashHours = event.flashEndsInHours
+    val remainingHours = event.flashEndsInHours ?: 0
+    val expiryLabel = when {
+        remainingHours >= 24 -> "Berakhir ${remainingHours / 24} hari lagi"
+        remainingHours > 0 -> "Berakhir $remainingHours jam lagi"
+        else -> null
+    }
     Column(
         modifier = modifier
             .shadow(3.dp, RoundedCornerShape(12.dp))
@@ -501,9 +527,9 @@ fun EventGridCard(
                     .fillMaxWidth()
                     .aspectRatio(1.2f)
             )
-            if (flashHours != null) {
+            if (expiryLabel != null) {
                 FlashBadge(
-                    text = formatFlashLabel(flashHours),
+                    text = expiryLabel,
                     modifier = Modifier.align(Alignment.BottomEnd)
                 )
             }
@@ -548,12 +574,14 @@ fun EventListCard(
             .background(Color.White)
             .clickable(onClick = onClick)
             .padding(8.dp)
+            .height(IntrinsicSize.Min)
     ) {
         PosterBox(
             event = event,
             titleSize = 10.sp,
             modifier = Modifier
-                .size(width = 100.dp, height = 82.dp)
+                .width(100.dp)
+                .fillMaxHeight()
                 .clip(RoundedCornerShape(10.dp))
         )
         Spacer(modifier = Modifier.width(8.dp))
@@ -576,7 +604,7 @@ fun EventListCard(
             )
         }
         Column(
-            modifier = Modifier.height(82.dp),
+            Modifier.fillMaxHeight(),
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -593,7 +621,6 @@ fun EventListCard(
     }
 }
 
-// Ringkasan event kecil di atas form pesanan / pembayaran
 @Composable
 fun OrderEventHeader(
     event: Event,

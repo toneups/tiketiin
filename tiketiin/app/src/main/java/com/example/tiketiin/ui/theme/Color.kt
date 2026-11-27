@@ -7,7 +7,7 @@ val BluePrimary = Color(0xFF2B45B4)
 val BlueSoft = Color(0xFFD6E2FF)
 val BlueSurface = Color(0xFFE9EEFC)
 
-val RedBadge = Color(0xFFE5395B)
+val RedBadge = Color(0xFFE91E63)
 val RedDark = Color(0xFFA30D00)
 val RedSoft = Color(0xFFFFE3E3)
 

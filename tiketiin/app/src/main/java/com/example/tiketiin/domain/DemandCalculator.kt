@@ -38,7 +38,7 @@ object DemandCalculator {
     const val WEIGHT_SOLD = 0.5
     const val WEIGHT_WISHLIST = 0.3
     const val WEIGHT_VIEW = 0.2
-    const val HIGH_DEMAND_THRESHOLD = 60
+    const val HIGH_DEMAND_THRESHOLD = 50
     const val LOW_STOCK_LIMIT = 20
 
     // Semua event yang akan datang beserta skornya, urut dari skor tertinggi.

@@ -1,5 +1,6 @@
 package com.example.tiketiin.ui.home
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,10 +8,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -29,30 +35,27 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.tiketiin.R
 import com.example.tiketiin.data.model.*
 import com.example.tiketiin.domain.*
 import com.example.tiketiin.ui.components.*
 import com.example.tiketiin.ui.theme.*
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Notifications
 
 private data class HomeCategory(
     val label: String,
-    val icon: ImageVector,
-    val color: Color,
+    val iconRes: Int,
     val category: EventCategory?
 )
 
 private val homeCategories = listOf(
-    HomeCategory("Konser", AppIcons.Music, Color(0xFF7B5CF5), EventCategory.MUSIK),
-    HomeCategory("Pameran", AppIcons.Exhibition, Color(0xFFE5395B), EventCategory.PAMERAN),
-    HomeCategory("Olahraga", AppIcons.Sport, Color(0xFF2E9E48), EventCategory.OLAHRAGA),
-    HomeCategory("Seminar", AppIcons.Seminar, Color(0xFF2B45B4), EventCategory.SEMINAR),
-    HomeCategory("Seni", AppIcons.Art, Color(0xFFF59E0B), EventCategory.SENI),
-    HomeCategory("Film", AppIcons.Film, Color(0xFF0EA5E9), EventCategory.FILM),
-    HomeCategory("Tempat Rekreasi", AppIcons.Event, Color(0xFF14B8A6), null),
-    HomeCategory("Akomodasi", AppIcons.Hotel, Color(0xFF6366F1), null)
+    HomeCategory("Konser", R.drawable.konser, EventCategory.MUSIK),
+    HomeCategory("Pameran", R.drawable.pameran, EventCategory.PAMERAN),
+    HomeCategory("Olahraga", R.drawable.olahraga, EventCategory.OLAHRAGA),
+    HomeCategory("Seminar", R.drawable.seminar, EventCategory.SEMINAR),
+    HomeCategory("Seni", R.drawable.seni, EventCategory.SENI),
+    HomeCategory("Film", R.drawable.film, EventCategory.FILM),
+    HomeCategory("Tempat Rekreasi", R.drawable.rekreasi, null),
+    HomeCategory("Akomodasi", R.drawable.akomodasi, null)
 )
 
 @Composable
@@ -76,15 +79,53 @@ fun HomeScreen(
     ) {
         // Banner event teratas + kolom cari di atasnya
         Box(modifier = Modifier.fillMaxWidth().height(270.dp)) {
-            val banner = uiState.banner
-            if (banner != null) {
-                PosterBox(
-                    event = banner.event,
-                    titleSize = 26.sp,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable { onOpenEvent(banner.event.id) }
-                )
+            val banners = uiState.popularEvents
+                .filter { it.event.posterRes != null || !it.event.posterUrl.isNullOrBlank() }
+                .take(3)
+                .ifEmpty { listOfNotNull(uiState.banner) }
+
+            if (banners.isNotEmpty()) {
+                val pagerState = rememberPagerState { banners.size }
+
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                    key = { page -> banners[page].event.id }
+                ) { page ->
+                    val event = banners[page].event
+
+                    PosterBox(
+                        event = event,
+                        titleSize = 26.sp,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable { onOpenEvent(event.id) }
+                    )
+                }
+
+                if (banners.size > 1) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 40.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        repeat(banners.size) { page ->
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(
+                                        color = if (pagerState.currentPage == page) {
+                                            Color.White
+                                        } else {
+                                            Color.White.copy(alpha = 0.5f)
+                                        },
+                                        shape = CircleShape
+                                    )
+                            )
+                        }
+                    }
+                }
             } else {
                 Box(modifier = Modifier.fillMaxSize().background(BluePrimary))
             }
@@ -100,13 +141,13 @@ fun HomeScreen(
                         .height(36.dp)
                         .clip(RoundedCornerShape(50))
                         .background(Color.White)
-                        .clickable { onSearch("all") }
+                        .clickable { onSearch("flash") }
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(imageVector = AppIcons.Search, contentDescription = null, tint = TextDark)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Cari event", fontSize = 13.sp, color = TextDark)
+                    Text(text = "Cari", fontSize = 13.sp, color = TextDark)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Box(
@@ -183,7 +224,6 @@ fun HomeScreen(
             }
         }
 
-        // Lembar putih yang menimpa bagian bawah banner
         Column(
             modifier = Modifier
                 .offset(y = (-28).dp)
@@ -204,15 +244,12 @@ fun HomeScreen(
                                 .padding(vertical = 6.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(item.color.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(imageVector = item.icon, contentDescription = null, tint = item.color)
-                            }
+                            Image(
+                                painter = painterResource(id = item.iconRes),
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = item.label,
                                 fontSize = 10.sp,
@@ -221,44 +258,6 @@ fun HomeScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                    }
-                }
-            }
-
-            if (uiState.isShowingCache) {
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFFFF4D6))
-                        .padding(12.dp),
-
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-
-                    Text(
-                        text = if (uiState.isRefreshing) {
-                            "Memperbarui data event..."
-                        } else {
-                            "Menampilkan data terakhir. Harga dan stok mungkin berubah."
-                        },
-                        fontSize = 11.sp,
-                        color = Color(0xFF856404),
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    if (!uiState.isRefreshing) {
-                        Text(
-                            text = "Refresh",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = BluePrimary,
-                            modifier = Modifier.clickable {
-                                onRetry()
-                            }
-                        )
                     }
                 }
             }
@@ -418,7 +417,6 @@ fun HomeScreen(
     }
 }
 
-// Kartu lebar pada bagian Event Populer
 @Composable
 private fun PopularCard(
     summary: EventSummary,

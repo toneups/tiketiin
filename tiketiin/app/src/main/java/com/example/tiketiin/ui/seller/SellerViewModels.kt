@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import com.example.tiketiin.data.auth.SessionManager
+import com.example.tiketiin.data.repository.VenueCoordinatesRequired
 import kotlinx.coroutines.CancellationException
 
 // ---------------------------------------------------------------------------
@@ -26,7 +28,9 @@ import kotlinx.coroutines.CancellationException
 data class ManageEventsUiState(
     val isLoading: Boolean = false,
     val events: List<Event> = emptyList(),
-    val formError: String? = null
+    val formError: String? = null,
+    val loadError: String? = null,
+    val needsVenueCoordinates: Boolean = false
 )
 
 class ManageEventsViewModel(
@@ -40,9 +44,23 @@ class ManageEventsViewModel(
 
     fun load() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = it.events.isEmpty()) }
-            val events = repository.getMyEvents()
-            _uiState.update { it.copy(isLoading = false, events = events) }
+            _uiState.update { it.copy(isLoading = true, loadError = null) }
+
+            try {
+                val events = repository.getMyEvents()
+                _uiState.update { it.copy(events = events) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val message = if (!SessionManager.hasSession) {
+                    "Silakan masuk untuk mengelola event."
+                } else {
+                    "Daftar event gagal dimuat. Coba buka ulang."
+                }
+                _uiState.update { it.copy(loadError = message) }
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
+            }
         }
     }
 
@@ -61,6 +79,9 @@ class ManageEventsViewModel(
         city: String,
         dateText: String,
         time: String,
+        latitudeText: String,
+        longitudeText: String,
+        uploadPoster: (suspend (String) -> String)?,
         onSaved: () -> Unit
     ) {
         viewModelScope.launch {
@@ -111,8 +132,39 @@ class ManageEventsViewModel(
                 date = date,
                 time = time.trim().ifBlank { "19.00 WIB" }
             )
-            repository.saveEvent(event)
-            _uiState.update { it.copy(formError = null) }
+            try {
+                repository.saveEvent(
+                    event,
+                    latitude = latitudeText.trim().toDoubleOrNull(),
+                    longitude = longitudeText.trim().toDoubleOrNull(),
+                    uploadPoster = uploadPoster
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: VenueCoordinatesRequired) {
+                _uiState.update {
+                    it.copy(
+                        needsVenueCoordinates = true,
+                        formError = "Isi latitude dan longitude untuk lokasi baru. Gunakan titik untuk desimal."
+                    )
+                }
+                return@launch
+            }catch (e: Exception) {
+                val message = when (e) {
+                    is IllegalArgumentException, is IllegalStateException ->
+                        e.message ?: "Periksa kembali isian event."
+                    is retrofit2.HttpException -> when (e.code()) {
+                        401 -> "Sesi berakhir. Silakan masuk lagi."
+                        403 -> "Akunmu belum memiliki izin untuk membuat event."
+                        409 -> "Event dengan nama, venue, dan tanggal yang sama sudah ada."
+                        else -> "Event gagal disimpan. Coba lagi."
+                    }
+                    else -> "Event gagal disimpan. Periksa koneksi dan coba lagi."
+                }
+                _uiState.update { it.copy(formError = message) }
+                return@launch
+            }
+            _uiState.update { it.copy(formError = null, needsVenueCoordinates = false) }
             load()
             onSaved()
         }
@@ -120,11 +172,21 @@ class ManageEventsViewModel(
 
     fun delete(eventId: Int) {
         viewModelScope.launch {
-            repository.deleteEvent(eventId)
-            load()
+            try {
+                repository.deleteEvent(eventId)
+                load()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val message = when ((e as? retrofit2.HttpException)?.code()) {
+                    409 -> "Event masih terkait dengan data lain dan belum bisa dihapus."
+                    401 -> "Sesi berakhir. Silakan masuk lagi."
+                    else -> "Event gagal dihapus. Coba lagi."
+                }
+                _uiState.update { it.copy(loadError = message) }
+            }
         }
     }
-
     fun formatDate(date: LocalDate): String = date.format(dateFormat)
 }
 
@@ -247,7 +309,8 @@ data class SalesUiState(
     val ticketsSold: Int = 0,
     val averagePrice: Long = 0L,
     val bestSeller: String = "-",
-    val bars: List<SalesBar> = emptyList()
+    val bars: List<SalesBar> = emptyList(),
+    val errorMessage: String? = null
 ) {
     val maxTickets: Int get() = bars.maxOfOrNull { it.tickets } ?: 0
 }
@@ -259,26 +322,41 @@ class SalesViewModel(
     private val _uiState = MutableStateFlow(SalesUiState())
     val uiState: StateFlow<SalesUiState> = _uiState.asStateFlow()
 
-    // Mengagregasi pesanan toko yang sudah dibayar menjadi ringkasan penjualan.
     fun load() {
         viewModelScope.launch {
-            val paid = repository.getStoreOrders().filter { it.status != OrderStatus.BELUM_BAYAR }
-            val revenue = paid.sumOf { it.ticketPrice }
-            val tickets = paid.sumOf { it.quantity }
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
-            val bars = paid.groupBy { it.eventId }.map { (eventId, orders) ->
-                val name = repository.getEventSummary(eventId)?.event?.name ?: "Event #$eventId"
-                SalesBar(name, orders.sumOf { it.quantity }, orders.sumOf { it.ticketPrice })
-            }.sortedByDescending { it.tickets }
+            try {
+                val orders = repository.getRemotePaidSellerOrders()
+                val tickets = orders.sumOf { it.quantity }
+                val revenue = orders.sumOf { it.unitPrice * it.quantity }
 
-            _uiState.value = SalesUiState(
-                isLoading = false,
-                totalRevenue = revenue,
-                ticketsSold = tickets,
-                averagePrice = if (tickets > 0) revenue / tickets else 0L,
-                bestSeller = bars.firstOrNull()?.label ?: "-",
-                bars = bars
-            )
+                val bars = orders.groupBy { it.eventId }.values.map { eventOrders ->
+                    SalesBar(
+                        label = eventOrders.first().event.name,
+                        tickets = eventOrders.sumOf { it.quantity },
+                        revenue = eventOrders.sumOf { it.unitPrice * it.quantity }
+                    )
+                }.sortedByDescending { it.tickets }
+
+                _uiState.value = SalesUiState(
+                    isLoading = false,
+                    totalRevenue = revenue,
+                    ticketsSold = tickets,
+                    averagePrice = if (tickets > 0) revenue / tickets else 0L,
+                    bestSeller = bars.firstOrNull()?.label ?: "-",
+                    bars = bars
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val message = if (!SessionManager.hasSession) {
+                    "Silakan masuk untuk melihat data penjualan."
+                } else {
+                    "Data penjualan gagal dimuat. Coba buka kembali."
+                }
+                _uiState.value = SalesUiState(isLoading = false, errorMessage = message)
+            }
         }
     }
 }

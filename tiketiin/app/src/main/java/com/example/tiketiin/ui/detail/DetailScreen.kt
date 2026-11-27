@@ -33,6 +33,9 @@ import com.example.tiketiin.data.model.*
 import com.example.tiketiin.domain.*
 import com.example.tiketiin.ui.components.*
 import com.example.tiketiin.ui.theme.*
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun DetailScreen(
@@ -60,6 +63,7 @@ fun DetailScreen(
     }
 
     val event = summary.event
+    val context = LocalContext.current
     var showOfferInfo by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
@@ -153,9 +157,19 @@ fun DetailScreen(
 
                 when (uiState.selectedTab) {
                     0 -> {
-                        IconText(icon = AppIcons.Store, text = event.venue, fontSize = 11.sp, iconSize = 16.dp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        IconText(icon = AppIcons.Location, text = event.city, fontSize = 11.sp, iconSize = 16.dp)
+                        Column(
+                            modifier = Modifier.clickable(onClickLabel = "Buka di Google Maps") {
+                                val coordinates = "${event.latitude},${event.longitude}"
+                                val uri = Uri.parse(
+                                    "https://www.google.com/maps/search/?api=1&query=$coordinates"
+                                )
+                                context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                            }
+                        ) {
+                            IconText(icon = AppIcons.Store, text = event.venue, fontSize = 11.sp, iconSize = 16.dp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            IconText(icon = AppIcons.Location, text = event.city, fontSize = 11.sp, iconSize = 16.dp)
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
                         InfoField(label = "Tanggal", value = formatDateLong(event.date), modifier = Modifier.fillMaxWidth())
                         Spacer(modifier = Modifier.height(8.dp))

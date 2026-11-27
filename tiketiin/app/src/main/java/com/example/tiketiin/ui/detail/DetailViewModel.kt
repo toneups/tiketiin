@@ -1,4 +1,3 @@
-
 package com.example.tiketiin.ui.detail
 
 import androidx.lifecycle.ViewModel
@@ -6,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.tiketiin.data.model.EventSummary
 import com.example.tiketiin.data.model.TicketListing
 import com.example.tiketiin.data.repository.EventCatalogRepository
+import com.example.tiketiin.data.repository.TiketiinRepository
 import com.example.tiketiin.data.repository.WishlistRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import java.io.IOException
 
@@ -35,7 +34,9 @@ data class DetailUiState(
 
 class DetailViewModel(
     private val eventRepository: EventCatalogRepository,
-    private val wishlistRepository: WishlistRepository
+    private val wishlistRepository: WishlistRepository,
+    // Dipakai untuk mencatat jumlah view (statistik Hot Opportunity).
+    private val repository: TiketiinRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DetailUiState())
@@ -45,7 +46,8 @@ class DetailViewModel(
 
     private var loadJob: Job? = null
 
-    // Mencatat event yang sudah pernah dihitung view-nya
+    // Event yang view-nya sudah dicatat selama ViewModel ini hidup
+    private val viewedEventIds = mutableSetOf<Int>()
 
     fun load(eventId: Int) {
         if (loadJob?.isActive == true) return
@@ -68,8 +70,6 @@ class DetailViewModel(
                 require(eventId > 0) {
                     "ID event tidak valid."
                 }
-
-
 
                 // Ambil data terbaru dari Supabase
                 eventRepository.refreshEvents()
@@ -107,6 +107,8 @@ class DetailViewModel(
                     )
                 }
 
+                recordViewOnce(eventId)
+
             } catch (e: CancellationException) {
                 throw e
 
@@ -131,6 +133,21 @@ class DetailViewModel(
                     )
                 }
             }
+        }
+    }
+
+    // Mencatat view ke Supabase. Gagal mencatat tidak boleh mengganggu halaman.
+    private suspend fun recordViewOnce(eventId: Int) {
+        val repo = repository ?: return
+        if (!viewedEventIds.add(eventId)) return
+
+        try {
+            repo.recordRemoteView(eventId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            viewedEventIds.remove(eventId)
+            android.util.Log.w("DetailViewModel", "Gagal mencatat view event", e)
         }
     }
 

@@ -24,15 +24,20 @@ import com.example.tiketiin.data.mapper.toHotelModels
 import com.example.tiketiin.data.mapper.toHotelModelsFromLocal
 import com.example.tiketiin.data.mapper.toModel
 import com.example.tiketiin.data.mapper.toOrderModelsFromLocal
+import com.example.tiketiin.data.mapper.toSummary
 import com.example.tiketiin.data.remote.EventRemoteDataSource
 import com.example.tiketiin.data.remote.HotelRemoteDataSource
 import com.example.tiketiin.data.remote.OrderRemoteDataSource
 import com.example.tiketiin.data.remote.RetrofitClient
 import com.example.tiketiin.data.remote.ReviewRemoteDataSource
+import com.example.tiketiin.data.remote.dto.CreateEventDto
 import com.example.tiketiin.data.remote.dto.CreateHotelRequestDto
 import com.example.tiketiin.data.remote.dto.CreateListingRequest
+import com.example.tiketiin.data.remote.dto.CreateVenueDto
 import com.example.tiketiin.data.remote.dto.ListingDto
 import com.example.tiketiin.data.remote.dto.PriceHistoryRequest
+import com.example.tiketiin.data.remote.dto.SellerSalesOrderDto
+import com.example.tiketiin.data.remote.dto.UpdateEventDto
 import com.example.tiketiin.data.remote.dto.UpdateHotelRequestDto
 import com.example.tiketiin.data.remote.dto.UpdateListingRequest
 import kotlinx.coroutines.CancellationException
@@ -51,17 +56,25 @@ interface TiketiinRepository {
     suspend fun getEventSummaries(): List<EventSummary>
     suspend fun getEventSummary(eventId: Int): EventSummary?
     suspend fun searchEvents(query: String, category: EventCategory?): List<EventSummary>
+    suspend fun getRemoteEventSummary(eventId: Int): EventSummary?
     suspend fun recordView(eventId: Int)
+    suspend fun recordRemoteView(eventId: Int)
     suspend fun toggleSaved(eventId: Int)
 
     // Kelola Event (seller)
     suspend fun getMyEvents(): List<Event>
-    suspend fun saveEvent(event: Event)
+    suspend fun saveEvent(
+        event: Event,
+        latitude: Double? = null,
+        longitude: Double? = null,
+        uploadPoster: (suspend (String) -> String)? = null
+    )
     suspend fun deleteEvent(eventId: Int)
 
     // Listing tiket
     suspend fun getListings(eventId: Int): List<TicketListing>
     suspend fun getCheapestListing(eventId: Int): TicketListing?
+    suspend fun getRemoteCheapestListing(eventId: Int): TicketListing?
     suspend fun getListing(listingId: Int): TicketListing?
     suspend fun getMyListings(): List<TicketListing>
     suspend fun addListing(listing: TicketListing): Int
@@ -71,6 +84,7 @@ interface TiketiinRepository {
 
     // Hot Opportunity
     suspend fun getDemandStats(): List<EventDemandStats>
+    suspend fun getRemoteDemandStats(): List<EventDemandStats>
 
     // Pesanan
     suspend fun createOrder(
@@ -94,6 +108,7 @@ interface TiketiinRepository {
     suspend fun getOrder(orderId: Int): Order?
     suspend fun getMyOrders(): List<Order>
     suspend fun getStoreOrders(): List<Order>
+    suspend fun getRemotePaidSellerOrders(): List<SellerSalesOrderDto>
     suspend fun updateOrderStatus(orderId: Int, status: OrderStatus)
     suspend fun rateOrder(orderId: Int, rating: Int)
 
@@ -210,6 +225,15 @@ class DefaultTiketiinRepository(
         }
     }
 
+    override suspend fun recordRemoteView(eventId: Int) {
+        if (!SessionManager.hasSession) return
+
+        AuthenticatedRequest.execute {
+            val userId = checkNotNull(SessionManager.userId)
+            EventRemoteDataSource().recordEventView(eventId, userId)
+        }
+    }
+
     override suspend fun toggleSaved(eventId: Int) {
         if (!source.savedEventIds.add(eventId)) {
             source.savedEventIds.remove(eventId)
@@ -217,22 +241,88 @@ class DefaultTiketiinRepository(
     }
 
     override suspend fun getMyEvents(): List<Event> {
-        fakeNetwork()
-        return source.events.filter { it.createdBy == me }
+        check(SessionManager.hasSession) { "Silakan masuk untuk mengelola event." }
+        return AuthenticatedRequest.execute {
+            val userId = checkNotNull(SessionManager.userId)
+            EventRemoteDataSource().getEventsByOwner(userId)
+                .map { it.toEntity().toModel() }
+        }
     }
 
-    override suspend fun saveEvent(event: Event) {
-        val index = source.events.indexOfFirst { it.id == event.id }
-        if (index >= 0) {
-            source.events[index] = event
-        } else {
-            source.events.add(event.copy(id = source.nextEventId(), createdBy = me))
+    override suspend fun saveEvent(
+        event: Event,
+        latitude: Double?,
+        longitude: Double?,
+        uploadPoster: (suspend (String) -> String)?
+    ) {
+        check(SessionManager.hasSession) {
+            "Silakan masuk untuk mengelola event."
+        }
+
+        AuthenticatedRequest.execute {
+            val userId = checkNotNull(SessionManager.userId)
+            val remote = EventRemoteDataSource()
+
+            val venue = remote.getVenues().firstOrNull {
+                it.name.equals(event.venue.trim(), ignoreCase = true) &&
+                        it.city.equals(event.city.trim(), ignoreCase = true)
+            } ?: run {
+                if (latitude == null || longitude == null) {
+                    throw VenueCoordinatesRequired()
+                }
+
+                require(latitude in -90.0..90.0 && longitude in -180.0..180.0) {
+                    "Latitude harus antara -90 dan 90, dan longitude antara -180 dan 180."
+                }
+
+                remote.createVenue(
+                    CreateVenueDto(
+                        name = event.venue.trim(),
+                        city = event.city.trim(),
+                        latitude = latitude,
+                        longitude = longitude,
+                        createdBy = userId
+                    )
+                )
+            }
+
+            if (event.id == 0) {
+                val posterUrl = uploadPoster?.invoke(userId)
+
+                remote.createEvent(
+                    CreateEventDto(
+                        name = event.name.trim(),
+                        category = event.category.name,
+                        venueId = venue.id,
+                        date = event.date.toString(),
+                        time = event.time,
+                        createdBy = userId,
+                        posterUrl = posterUrl
+                    )
+                )
+            } else {
+                remote.updateEvent(
+                    event.id,
+                    UpdateEventDto(
+                        name = event.name.trim(),
+                        category = event.category.name,
+                        venueId = venue.id,
+                        date = event.date.toString(),
+                        time = event.time
+                    )
+                )
+            }
         }
     }
 
     override suspend fun deleteEvent(eventId: Int) {
-        source.events.removeAll { it.id == eventId }
-        source.listings.removeAll { it.eventId == eventId }
+        check(SessionManager.hasSession) {
+            "Silakan masuk untuk mengelola event."
+        }
+
+        AuthenticatedRequest.execute {
+            EventRemoteDataSource().deleteEvent(eventId)
+        }
     }
 
     override suspend fun getListings(eventId: Int): List<TicketListing> {
@@ -250,6 +340,22 @@ class DefaultTiketiinRepository(
 
     override suspend fun getCheapestListing(eventId: Int): TicketListing? {
         return getListings(eventId).minByOrNull { it.price }
+    }
+
+    override suspend fun getRemoteCheapestListing(eventId: Int): TicketListing? {
+        val listing = EventRemoteDataSource().getCheapestActiveListing(eventId)
+            ?: return null
+
+        return TicketListing(
+            id = listing.id,
+            eventId = listing.eventId,
+            sellerId = listing.sellerId,
+            seatCategory = listing.seatCategory,
+            row = listing.seatRow,
+            faceValue = listing.faceValue,
+            price = listing.price,
+            quantity = listing.quantity
+        )
     }
 
     override suspend fun getListing(listingId: Int): TicketListing? {
@@ -415,6 +521,33 @@ class DefaultTiketiinRepository(
         }
     }
 
+    override suspend fun getRemoteDemandStats(): List<EventDemandStats> {
+        check(SessionManager.hasSession) {
+            "Silakan masuk untuk melihat Hot Opportunity."
+        }
+
+        return AuthenticatedRequest.execute {
+            val remote = EventRemoteDataSource()
+            val stats = remote.getEventDemandStats()
+            val eventsById = remote.getEvents().associateBy { it.id }
+
+            stats.mapNotNull { row ->
+                val event = eventsById[row.eventId]
+                    ?.toEntity()
+                    ?.toModel()
+                    ?: return@mapNotNull null
+
+                EventDemandStats(
+                    event = event,
+                    soldCount = row.soldCount,
+                    wishlistCount = row.wishlistCount,
+                    viewCount = row.viewCount,
+                    viewsLast7Days = row.viewsLast7Days,
+                    availableStock = row.availableStock
+                )
+            }
+        }
+    }
 
     override suspend fun createOrder(
         listingId: Int,
@@ -612,6 +745,17 @@ class DefaultTiketiinRepository(
         }
     }
 
+    override suspend fun getRemotePaidSellerOrders(): List<SellerSalesOrderDto> {
+        check(SessionManager.hasSession) {
+            "Silakan masuk untuk melihat data penjualan."
+        }
+
+        return AuthenticatedRequest.execute {
+            val userId = checkNotNull(SessionManager.userId)
+            EventRemoteDataSource().getPaidSellerOrders(userId)
+        }
+    }
+
     override suspend fun updateOrderStatus(orderId: Int, status: OrderStatus) {
         val index = source.orders.indexOfFirst { it.id == orderId }
         if (index >= 0) {
@@ -723,7 +867,6 @@ class DefaultTiketiinRepository(
         }
     }
 
-
     override suspend fun getAllHotels(): List<Hotel> {
         return AuthenticatedRequest.execute {
             hotelRemoteDataSource
@@ -731,7 +874,6 @@ class DefaultTiketiinRepository(
                 .toHotelModels()
         }
     }
-
 
     override suspend fun createHotel(
         request: CreateHotelRequestDto
@@ -773,4 +915,14 @@ class DefaultTiketiinRepository(
         }
     }
 
+    override suspend fun getRemoteEventSummary(eventId: Int): EventSummary? {
+        return EventRemoteDataSource()
+            .getEventWithListings(eventId)
+            ?.toEntity()
+            ?.toSummary()
+    }
 }
+
+class VenueCoordinatesRequired : Exception(
+    "Lengkapi koordinat untuk menambahkan lokasi baru."
+)

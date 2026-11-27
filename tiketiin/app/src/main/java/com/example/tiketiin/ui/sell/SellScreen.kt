@@ -71,7 +71,7 @@ fun SellScreen(
             modifier = Modifier.padding(horizontal = 12.dp)
         )
         Text(
-            text = "Tiket batal dipakai? Tiketiin bisa ubah tiketmu jadi cuan dan pastiin kamu tetap untung!",
+            text = "Tiket batal dipakai? Tiketiin bisa ubah tiketmu jadi cuan!",
             fontSize = 13.sp,
             color = TextGray,
             modifier = Modifier.padding(horizontal = 12.dp)
@@ -86,7 +86,7 @@ fun SellScreen(
                 ErrorBox(message = error, onRetry = onRetry)
             }
             top == null -> HotOpportunityFrame(onSeeAll = onSeeAll) {
-                EmptyBox(text = "Belum ada event dengan permintaan tinggi saat ini.\nKetuk Lihat Semua untuk melihat skor semua event.")
+                EmptyBox(text = "Belum ada event dengan permintaan tinggi saat ini.")
             }
             else -> HotOpportunityFrame(onSeeAll = onSeeAll) {
                 HotOpportunityContent(
@@ -238,7 +238,7 @@ private fun HotOpportunityContent(
             DemandStatBox(AppIcons.Chart, RedBadge, "${item.demandScore}/100", "Demand Score", Modifier.weight(1f))
             DemandStatBox(AppIcons.Group, TextDark, item.activeSeekers.toString(), "Pencari Aktif", Modifier.weight(1f))
             DemandStatBox(AppIcons.Ticket, RedBadge, item.stockLabel, "Tiket Tersedia", Modifier.weight(1f))
-            DemandStatBox(AppIcons.Trending, GreenMain, "${item.sellChancePercent}%", "Peluang Laku", Modifier.weight(1f))
+            DemandStatBox(AppIcons.Trending, Color(0xFF1B5E20), "${item.sellChancePercent}%", "Peluang Laku", Modifier.weight(1f))
         }
         Spacer(modifier = Modifier.height(8.dp))
         IconText(
@@ -309,9 +309,47 @@ private fun DemandStatBox(
             .padding(vertical = 8.dp, horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(imageVector = icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(22.dp))
-        Text(text = value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = BluePrimary, maxLines = 1)
-        Text(text = label, fontSize = 8.sp, color = TextGray, maxLines = 1)
+        if (label == "Demand Score") {
+            Row(
+                modifier = Modifier.size(22.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Box(
+                    Modifier.size(4.dp, 9.dp)
+                        .background(Color(0xFFF69A8B), RoundedCornerShape(1.5.dp))
+                )
+                Box(
+                    Modifier.size(4.dp, 14.dp)
+                        .background(Color(0xFFD43C28), RoundedCornerShape(1.5.dp))
+                )
+                Box(
+                    Modifier.size(4.dp, 20.dp)
+                        .background(Color(0xFF8C1D13), RoundedCornerShape(1.5.dp))
+                )
+            }
+        } else {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+        Text(
+            text = value,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = BluePrimary,
+            maxLines = 1,
+            modifier = Modifier.offset(y = 3.dp)
+        )
+        Text(
+            text = label,
+            fontSize = 8.sp,
+            color = TextGray,
+            maxLines = 1
+        )
     }
 }
 
@@ -353,10 +391,17 @@ private fun CountdownBox(value: Long, label: String) {
             .width(64.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(BlueSurface)
-            .padding(vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .height(56.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Text(text = "%02d".format(value), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = BluePrimary)
+        Text(
+            text = "%02d".format(value),
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+            color = BluePrimary,
+            modifier = Modifier.offset(y = 3.dp)
+        )
         Text(text = label, fontSize = 10.sp, color = TextGray)
     }
 }
@@ -376,11 +421,6 @@ private fun SellerMenuTile(icon: ImageVector, label: String, onClick: () -> Unit
         Text(text = label, fontSize = 11.sp, color = BluePrimary, fontWeight = FontWeight.Medium)
     }
 }
-
-// ---------------------------------------------------------------------------
-// Layar "Lihat Semua": daftar peringkat Hot Opportunity
-// (belum ada di Figma, dibuat mengikuti gaya kartu yang sama)
-// ---------------------------------------------------------------------------
 
 @Composable
 fun HotOpportunityListScreen(
@@ -402,12 +442,6 @@ fun HotOpportunityListScreen(
             PillChip(label = "High Demand", selected = uiState.highDemandOnly, onClick = { if (!uiState.highDemandOnly) onToggleFilter() })
             PillChip(label = "Semua Event", selected = !uiState.highDemandOnly, onClick = { if (uiState.highDemandOnly) onToggleFilter() })
         }
-        Text(
-            text = "Skor = 50% tiket terjual + 30% wishlist + 20% view. Skor ${DemandCalculator.HIGH_DEMAND_THRESHOLD} ke atas masuk High Demand.",
-            fontSize = 10.sp,
-            color = TextGray,
-            modifier = Modifier.padding(horizontal = 24.dp)
-        )
 
         val error = uiState.errorMessage
         when {

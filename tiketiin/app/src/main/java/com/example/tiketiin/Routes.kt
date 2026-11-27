@@ -14,14 +14,17 @@ object Routes {
     const val SELL = "sell"
     const val ORDERS = "orders"
     const val PROFILE = "profile"
+    const val FLASH_TICKETS = "flash_tickets"
     val TABS = setOf(HOME, FOR_YOU, SELL, ORDERS, PROFILE)
 
     // Alur pembeli
     const val SEARCH = "search/{category}"
     fun search(category: String = "all"): String = "search/$category"
     const val SAVED = "saved"
-    const val DETAIL = "detail/{eventId}"
-    fun detail(eventId: Int): String = "detail/$eventId"
+    const val DETAIL = "detail/{eventId}?remote={remote}"
+
+    fun detail(eventId: Int, remote: Boolean = false): String =
+        "detail/$eventId?remote=$remote"
     const val ORDER_FORM = "order_form"
     const val PAYMENT = "payment"
 

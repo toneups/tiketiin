@@ -32,11 +32,7 @@ data class HotOpportunityUiState(
     val visibleList: List<HotOpportunity> get() = if (highDemandOnly) highDemand else allEvents
 }
 
-/**
- * ViewModel FUNGSI 2 (Hot Opportunity).
- * Mengambil data permintaan dari repository, lalu menghitung skor di
- * Dispatchers.Default supaya perhitungan tidak membebani UI thread.
- */
+
 class HotOpportunityViewModel(
     private val repository: TiketiinRepository
 ) : ViewModel() {
@@ -48,7 +44,7 @@ class HotOpportunityViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = it.allEvents.isEmpty(), errorMessage = null) }
             try {
-                val stats = repository.getDemandStats()
+                val stats = repository.getRemoteDemandStats()
                 val result = withContext(Dispatchers.Default) {
                     DemandCalculator.calculate(stats, LocalDate.now())
                 }

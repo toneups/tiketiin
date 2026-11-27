@@ -34,6 +34,18 @@ import com.example.tiketiin.domain.*
 import com.example.tiketiin.ui.components.*
 import com.example.tiketiin.ui.theme.*
 import androidx.compose.ui.window.Dialog
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import androidx.compose.ui.platform.LocalContext
+import com.example.tiketiin.data.remote.uploadEventPoster
+import android.app.DatePickerDialog
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 // Layar-layar ini belum ada di Figma. Dibuat dari daftar fungsi di laporan Bab II
 // (Kelola Event, Kelola Tiket, Lihat Data Penjualan) dengan gaya yang sama.
@@ -47,8 +59,11 @@ fun ManageEventsScreen(
     uiState: ManageEventsUiState,
     onBack: () -> Unit,
     formatDate: (java.time.LocalDate) -> String,
-    onSave: (Event?, String, EventCategory, String, String, String, String, () -> Unit) -> Unit,
-    onDelete: (Int) -> Unit,
+    onSave: (
+        Event?, String, EventCategory, String, String, String, String, String, String,
+        (suspend (String) -> String)?,
+        () -> Unit
+    ) -> Unit,    onDelete: (Int) -> Unit,
     onClearError: () -> Unit
 ) {
     var showForm by remember { mutableStateOf(false) }
@@ -61,6 +76,7 @@ fun ManageEventsScreen(
         Box(modifier = Modifier.weight(1f)) {
             when {
                 uiState.isLoading -> LoadingBox()
+                uiState.loadError != null -> EmptyBox(text = uiState.loadError)
                 uiState.events.isEmpty() -> EmptyBox(text = "Kamu belum membuat event.\nKetuk tombol di bawah untuk menambah.")
                 else -> LazyColumn(
                     contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
@@ -119,9 +135,12 @@ fun ManageEventsScreen(
             editing = editing,
             initialDate = editing?.let { formatDate(it.date) } ?: "",
             error = uiState.formError,
+            needsVenueCoordinates = uiState.needsVenueCoordinates,
             onDismiss = { showForm = false },
-            onSubmit = { name, category, venue, city, date, time ->
-                onSave(editing, name, category, venue, city, date, time) { showForm = false }
+            onSubmit = { name, category, venue, city, date, time, latitude, longitude, uploadPoster ->
+                onSave(editing, name, category, venue, city, date, time, latitude, longitude, uploadPoster) {
+                    showForm = false
+                }
             }
         )
     }
@@ -132,16 +151,28 @@ private fun EventFormDialog(
     editing: Event?,
     initialDate: String,
     error: String?,
+    needsVenueCoordinates: Boolean,
     onDismiss: () -> Unit,
-    onSubmit: (String, EventCategory, String, String, String, String) -> Unit
+    onSubmit: (
+        String, EventCategory, String, String, String, String, String, String,
+        (suspend (String) -> String)?
+    ) -> Unit
 ) {
     var name by remember { mutableStateOf(editing?.name ?: "") }
     var category by remember { mutableStateOf(editing?.category ?: EventCategory.MUSIK) }
     var venue by remember { mutableStateOf(editing?.venue ?: "") }
     var city by remember { mutableStateOf(editing?.city ?: "") }
+    var coordinates by remember(venue, city) { mutableStateOf("") }
     var date by remember { mutableStateOf(initialDate) }
     var time by remember { mutableStateOf(editing?.time ?: "") }
+    var posterUri by rememberSaveable { mutableStateOf<Uri?>(null) }
 
+    val posterPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) posterUri = uri
+    }
+    val resolver = LocalContext.current.contentResolver
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -159,6 +190,28 @@ private fun EventFormDialog(
             FormField(label = "Nama Event") {
                 AppTextField(value = name, onValueChange = { name = it }, placeholder = "Masukkan nama event")
             }
+            if (editing == null) {
+                posterUri?.let { uri ->
+                    AsyncImage(
+                        model = uri,
+                        contentDescription = "Pratinjau poster event",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp)
+                    )
+                }
+
+                TextButton(
+                    onClick = {
+                        posterPicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    }
+                ) {
+                    Text(if (posterUri == null) "Pilih poster (opsional)" else "Ganti poster")
+                }
+            }
             Text(text = "Kategori", fontSize = 13.sp)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(EventCategory.entries.toList()) { option ->
@@ -171,8 +224,39 @@ private fun EventFormDialog(
             FormField(label = "Kota") {
                 AppTextField(value = city, onValueChange = { city = it }, placeholder = "Masukkan kota")
             }
-            FormField(label = "Tanggal", hint = "Format dd-MM-yyyy") {
-                AppTextField(value = date, onValueChange = { date = it }, placeholder = "17-01-2027")
+            if (needsVenueCoordinates) {
+                FormField(label = "Koordinat venue", hint = "Format latitude, longitude") {
+                    AppTextField(
+                        value = coordinates,
+                        onValueChange = { coordinates = it },
+                        placeholder = "-7.95, 112.61"
+                    )
+                }
+            }
+            FormField(label = "Tanggal") {
+                val context = LocalContext.current
+                val formatter = remember { DateTimeFormatter.ofPattern("dd-MM-yyyy") }
+
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        val initial = runCatching {
+                            LocalDate.parse(date, formatter)
+                        }.getOrElse { LocalDate.now() }
+
+                        DatePickerDialog(
+                            context,
+                            { _, year, month, day ->
+                                date = LocalDate.of(year, month + 1, day).format(formatter)
+                            },
+                            initial.year,
+                            initial.monthValue - 1,
+                            initial.dayOfMonth
+                        ).show()
+                    }
+                ) {
+                    Text(date.ifBlank { "Pilih tanggal" })
+                }
             }
             FormField(label = "Waktu") {
                 AppTextField(value = time, onValueChange = { time = it }, placeholder = "14.30 - 23.00")
@@ -182,7 +266,17 @@ private fun EventFormDialog(
             }
             PrimaryButton(
                 text = "Simpan",
-                onClick = { onSubmit(name, category, venue, city, date, time) },
+                onClick = {
+                    val parts = coordinates.split(',').takeIf { it.size == 2 }
+                    val latitude = parts?.get(0)?.trim().orEmpty()
+                    val longitude = parts?.get(1)?.trim().orEmpty()
+
+                    val uploadPoster: (suspend (String) -> String)? = posterUri?.let { uri ->
+                        { userId -> uploadEventPoster(resolver, uri, userId) }
+                    }
+
+                    onSubmit(name, category, venue, city, date, time, latitude, longitude, uploadPoster)
+                },
                 modifier = Modifier.fillMaxWidth()
             )
             OutlineButton(text = "Batal", onClick = onDismiss, color = TextDark, modifier = Modifier.fillMaxWidth())
@@ -347,6 +441,11 @@ fun SalesReportScreen(
         }
         if (uiState.isLoading) {
             LoadingBox()
+            val error = uiState.errorMessage
+            if (error != null) {
+                EmptyBox(text = error)
+                return@Column
+            }
             return@Column
         }
         Column(
