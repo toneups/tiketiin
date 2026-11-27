@@ -56,7 +56,6 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.draw.rotate
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import coil.compose.AsyncImage
 import androidx.compose.ui.res.vectorResource
 import com.example.tiketiin.R
 

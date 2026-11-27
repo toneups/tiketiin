@@ -94,9 +94,9 @@ class ManageEventsViewModel(
             val all = repository.getEventSummaries().map { it.event }
             val duplicate = date != null && all.any {
                 it.id != (editing?.id ?: -1) &&
-                    it.name.equals(name.trim(), ignoreCase = true) &&
-                    it.venue.equals(venue.trim(), ignoreCase = true) &&
-                    it.date == date
+                        it.name.equals(name.trim(), ignoreCase = true) &&
+                        it.venue.equals(venue.trim(), ignoreCase = true) &&
+                        it.date == date
             }
             val error = when {
                 name.isBlank() -> "Nama event wajib diisi."
@@ -150,7 +150,7 @@ class ManageEventsViewModel(
                     )
                 }
                 return@launch
-            }catch (e: Exception) {
+            } catch (e: Exception) {
                 val message = when (e) {
                     is IllegalArgumentException, is IllegalStateException ->
                         e.message ?: "Periksa kembali isian event."

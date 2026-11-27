@@ -14,9 +14,9 @@ import com.example.tiketiin.data.local.entity.OrderEntity
 @Database(
     entities = [
         CachedEventEntity::class,
+        CachedListingEntity::class,
         HotelEntity::class,
-        OrderEntity::class,
-        CachedListingEntity::class
+        OrderEntity::class
     ],
     version = 8,
     exportSchema = true
@@ -24,7 +24,7 @@ import com.example.tiketiin.data.local.entity.OrderEntity
 abstract class TiketiinDatabase : RoomDatabase() {
 
     abstract fun eventDao(): EventDao
+    abstract fun listingDao(): ListingDao
     abstract fun hotelDao(): HotelDao
     abstract fun orderDao(): OrderDao
-    abstract fun listingDao(): ListingDao
 }

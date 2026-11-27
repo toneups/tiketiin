@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.tiketiin.data.model.EventSummary
 import com.example.tiketiin.data.model.TicketListing
 import com.example.tiketiin.data.repository.EventCatalogRepository
+import com.example.tiketiin.data.repository.OfferRepository
 import com.example.tiketiin.data.repository.TiketiinRepository
 import com.example.tiketiin.data.repository.WishlistRepository
 import kotlinx.coroutines.CancellationException
@@ -26,7 +27,10 @@ data class DetailUiState(
     val selectedListingId: Int? = null,
     val quantity: Int = 1,
     val selectedTab: Int = 0,
-    val isSaving: Boolean = false
+    val isSaving: Boolean = false,
+    val isSubmittingOffer: Boolean = false,
+    val offerError: String? = null,
+    val submittedOfferId: Long? = null
 ) {
     val totalPrice: Long
         get() = (listing?.price ?: 0L) * quantity
@@ -48,6 +52,8 @@ class DetailViewModel(
 
     // Event yang view-nya sudah dicatat selama ViewModel ini hidup
     private val viewedEventIds = mutableSetOf<Int>()
+
+    private val offerRepository = OfferRepository()
 
     fun load(eventId: Int) {
         if (loadJob?.isActive == true) return
@@ -225,6 +231,79 @@ class DetailViewModel(
                         isSaving = false,
                         actionError =
                             "Gagal mengubah bookmark. Periksa koneksi."
+                    )
+                }
+            }
+        }
+    }
+
+    fun resetOfferResult() {
+        if (_uiState.value.isSubmittingOffer) return
+
+        _uiState.update {
+            it.copy(
+                offerError = null,
+                submittedOfferId = null
+            )
+        }
+    }
+
+    fun submitOffer(
+        listingId: Int,
+        pricePerTicket: Long,
+        quantity: Int
+    ) {
+        val state = _uiState.value
+        if (state.isSubmittingOffer) return
+
+        val selected = state.listings.firstOrNull {
+            it.id == listingId
+        }
+
+        val validationError = when {
+            selected == null -> "Tiket tidak ditemukan."
+            quantity <= 0 || quantity > selected.quantity ->
+                "Jumlah tiket melebihi stok."
+            pricePerTicket <= 0 || pricePerTicket >= selected.price ->
+                "Penawaran harus lebih dari nol dan di bawah harga tiket."
+            else -> null
+        }
+
+        if (validationError != null) {
+            _uiState.update { it.copy(offerError = validationError) }
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                isSubmittingOffer = true,
+                offerError = null,
+                submittedOfferId = null
+            )
+        }
+
+        viewModelScope.launch {
+            try {
+                val offerId = offerRepository.submit(
+                    listingId,
+                    pricePerTicket,
+                    quantity
+                )
+
+                _uiState.update {
+                    it.copy(
+                        isSubmittingOffer = false,
+                        submittedOfferId = offerId
+                    )
+                }
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(isSubmittingOffer = false) }
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isSubmittingOffer = false,
+                        offerError = "Penawaran gagal dikirim. Coba lagi."
                     )
                 }
             }

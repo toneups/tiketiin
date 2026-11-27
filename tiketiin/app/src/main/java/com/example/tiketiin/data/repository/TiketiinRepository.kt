@@ -18,6 +18,7 @@ import com.example.tiketiin.data.auth.AuthenticatedRequest
 import com.example.tiketiin.data.auth.SessionManager
 import com.example.tiketiin.data.local.HotelLocalDataSource
 import com.example.tiketiin.data.local.OrderLocalDataSource
+import com.example.tiketiin.data.local.dao.ListingDao
 import com.example.tiketiin.data.local.entity.CachedListingEntity
 import com.example.tiketiin.data.mapper.toEntity
 import com.example.tiketiin.data.mapper.toHotelModels
@@ -132,13 +133,13 @@ interface TiketiinRepository {
 
 class DefaultTiketiinRepository(
     private val source: DummyDataSource,
+    private val listingDao: ListingDao? = null,
     private val hotelRemoteDataSource: HotelRemoteDataSource = HotelRemoteDataSource(),
     private val eventRemoteDataSource: EventRemoteDataSource = EventRemoteDataSource(),
     private val orderRemoteDataSource: OrderRemoteDataSource = OrderRemoteDataSource(),
     private val reviewRemoteDataSource: ReviewRemoteDataSource = ReviewRemoteDataSource(),
     private val hotelLocalDataSource: HotelLocalDataSource? = null,
-    private val orderLocalDataSource: OrderLocalDataSource? = null,
-    private val listingDao: com.example.tiketiin.data.local.dao.ListingDao? = null
+    private val orderLocalDataSource: OrderLocalDataSource? = null
 ) : TiketiinRepository {
     override suspend fun uploadTicketProof(
         bytes: ByteArray,
@@ -867,6 +868,13 @@ class DefaultTiketiinRepository(
         }
     }
 
+    override suspend fun getRemoteEventSummary(eventId: Int): EventSummary? {
+        return EventRemoteDataSource()
+            .getEventWithListings(eventId)
+            ?.toEntity()
+            ?.toSummary()
+    }
+
     override suspend fun getAllHotels(): List<Hotel> {
         return AuthenticatedRequest.execute {
             hotelRemoteDataSource
@@ -913,13 +921,6 @@ class DefaultTiketiinRepository(
             // Bersihkan cache setelah hotel berhasil dihapus.
             hotelLocalDataSource?.clearAllHotels()
         }
-    }
-
-    override suspend fun getRemoteEventSummary(eventId: Int): EventSummary? {
-        return EventRemoteDataSource()
-            .getEventWithListings(eventId)
-            ?.toEntity()
-            ?.toSummary()
     }
 }
 
