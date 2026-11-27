@@ -133,7 +133,7 @@ fun HomeScreen(
                         .height(36.dp)
                         .clip(RoundedCornerShape(50))
                         .background(Color.White)
-                        .clickable { onSearch("flash") }
+                        .clickable { onSearch("all") }
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
